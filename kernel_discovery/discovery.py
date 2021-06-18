@@ -81,3 +81,15 @@ class HorseshoeDiscovery(BaseDiscovery):
     def discover(self):
         # TODO: implement this
         pass
+    
+
+if __name__ == "__main__":
+    
+    # unit test
+    
+    x, y = np.random.randn(3,1), np.random.randn(3,1)
+    
+    discovery = ABCDiscovery(x, y)
+    
+    discovery.discover()
+    
