@@ -6,6 +6,7 @@ from kernel_discovery.kernel import BASE_KERNELS, COMBINATION_KERNELS
 
 from anytree import Node, node
 from gpflow.kernels import Kernel
+from kernel_discovery.kernel import Sum, Product
 
 def kernel_to_ast(kernel: Kernel, parent: Optional[Node]=None) -> Node:
     
