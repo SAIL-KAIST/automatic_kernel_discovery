@@ -1,11 +1,16 @@
 import logging
 from typing import Any, Dict, Optional
+from gpflow import kernels
 
 import numpy as np
 from gpflow.kernels import White
 
 from kernel_discovery.preprocessing import preprocessing
 from kernel_discovery.description import kernel_to_ast, ast_to_text
+from kernel_discovery.expansion.expand import expand_asts
+from kernel_discovery.evaluation.evaluate import LocalEvaluator
+
+
 
 class BaseDiscovery(object):
     
@@ -44,8 +49,13 @@ class ABCDiscovery(BaseDiscovery):
         self.early_stopy_min_rel_delta = early_stopping_min_rel_delta
         self.gammar_kwargs = gammar_kwargs
         
-        self.start_ast = kernel_to_ast(White(1))
+        self.start_ast = kernel_to_ast(White())
         
+        # init either local or cluster evaluator
+        self.evaluator = LocalEvaluator()
+    
+    def get_n_best(self, scored_kernels: Dict[str, Dict[str, Any]]):
+        return sorted(scored_kernels, key=lambda kernel: scored_kernels[kernel]['score'])[:self.find_n_best]
     
     def discover(self):
         
@@ -62,14 +72,22 @@ class ABCDiscovery(BaseDiscovery):
                 'depth': 0
             }
         }
-        for depth in range(self.search_depth):
+        
+        best_previous_kernels = self.get_n_best(scored_kernels)
+        
+        to_expand = [scored_kernels[kernel_name]['ast'] for kernel_name in best_previous_kernels]
+        new_asts = expand_asts(to_expand)
+        self.evaluator.evaluate(x, y, new_asts)
+        
+        # for depth in range(self.search_depth):
             
-            best_previous_kernel = None
+        #     best_previous_kernel = None
             
-            # check if early stopping
+        #     # check if early stopping
             
-            
-            new_asts = expand_asts()
+        #     new_asts = []
+        #     if depth == 0:
+        #         new_asts = expand_asts()
         
     
 
@@ -87,7 +105,8 @@ if __name__ == "__main__":
     
     # unit test
     
-    x, y = np.random.randn(3,1), np.random.randn(3,1)
+    x = np.array([0, 1, 2])
+    y = np.array([0, 1, 2])
     
     discovery = ABCDiscovery(x, y)
     
