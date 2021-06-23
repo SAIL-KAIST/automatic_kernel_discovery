@@ -21,7 +21,7 @@ class Periodic(gpflow_Periodic):
         base_kernel = RBF(variance=variance, lengthscales=lengthscales)
         super().__init__(base_kernel, period=period)
 
-BASE_KERNELS : Dict[str, gpflow.kernels.Kernel] = {
+BASE_KERNELS : Dict[str, Kernel] = {
     'constant': Constant,
     'rbf': RBF,
     'linear': Linear,
@@ -31,7 +31,7 @@ BASE_KERNELS : Dict[str, gpflow.kernels.Kernel] = {
     'white': White
 }
 
-COMBINATION_KERNELS: Dict[str, gpflow.kernels.Kernel] = {
+COMBINATION_KERNELS: Dict[str, Kernel] = {
     'sum': Sum,
     'product': Product
 }
