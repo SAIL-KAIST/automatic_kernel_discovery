@@ -1,3 +1,4 @@
+from kernel_discovery.description.transform import ast_to_kernel
 from kernel_discovery.expansion.grammar import IMPLEMENTED_BASE_KERNEL_NAMES
 import logging
 from typing import Any, Dict, Optional
@@ -9,7 +10,7 @@ from gpflow.kernels import White
 from kernel_discovery.preprocessing import preprocessing
 from kernel_discovery.description import kernel_to_ast, ast_to_text
 from kernel_discovery.expansion.expand import expand_asts
-from kernel_discovery.evaluation.evaluate import LocalEvaluator
+from kernel_discovery.evaluation.evaluate import LocalEvaluator, ParallelEvaluator
 
 
 
@@ -50,10 +51,10 @@ class ABCDiscovery(BaseDiscovery):
         self.early_stopy_min_rel_delta = early_stopping_min_rel_delta
         self.gammar_kwargs = gammar_kwargs
         
-        self.start_ast = kernel_to_ast(White())
+        self.start_ast = kernel_to_ast(White(), include_param=True)
         
         # init either local or cluster evaluator
-        self.evaluator = LocalEvaluator()
+        self.evaluator = ParallelEvaluator()
     
     def get_n_best(self, scored_kernels: Dict[str, Dict[str, Any]]):
         return sorted(scored_kernels, key=lambda kernel: scored_kernels[kernel]['score'])[:self.find_n_best]
@@ -62,14 +63,13 @@ class ABCDiscovery(BaseDiscovery):
         
         x, y = preprocessing(self.x, self.y, rescale_x_to_upper_bound=self.rescale_x_to_upper_bound)
         
-        
         self.logger.info(f'Starting the kernel discovery with base kernels `{IMPLEMENTED_BASE_KERNEL_NAMES}`')
         
         stopping_reason = f"Depth `{self.search_depth} - 1`: Reached maximum depth"
         scored_kernels = {
             ast_to_text(self.start_ast): {
                 'ast': self.start_ast,
-                'params': {},
+                'noise': 0.,
                 'score': np.Inf,
                 'depth': 0
             }
@@ -90,15 +90,14 @@ class ABCDiscovery(BaseDiscovery):
             if not unscored_asts:
                 stopping_reason = f"Depth `{depth}`: Empty search space, no new asts found"
             
-            for ast, optimized_params, score in self.evaluator.evaluate(x, y, unscored_asts):
-                scored_kernels[ast_to_text(ast)] = {
-                    'ast': ast,
-                    'depth':depth,
-                    'params': optimized_params,
-                    'score': score
+            for optimized_ast, noise, score in self.evaluator.evaluate(x, y, unscored_asts):
+                scored_kernels[ast_to_text(optimized_ast)] = {
+                    'ast': optimized_ast,
+                    'noise':noise,
+                    'score': score,
+                    'depth':depth
                 }
                 
-        
         self.logger.info(f'Finish model search, stopping reason was: \n\n\t{stopping_reason}\n')
         
         return {

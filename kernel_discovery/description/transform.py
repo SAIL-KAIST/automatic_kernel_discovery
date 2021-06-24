@@ -1,22 +1,24 @@
 from typing import Optional
 
 from gpflow.utilities.traversal import parameter_dict
+from numpy.core.fromnumeric import var
 
 from kernel_discovery.kernel import BASE_KERNELS, COMBINATION_KERNELS
 
 from anytree import Node, node
-from gpflow.kernels import Kernel
-from kernel_discovery.kernel import Sum, Product
+from kernel_discovery.kernel import Sum, Product, Kernel, White, Linear, RBF, Periodic, Polynomial, Constant
 
-def kernel_to_ast(kernel: Kernel, parent: Optional[Node]=None) -> Node:
+def kernel_to_ast(kernel: Kernel, parent: Optional[Node]=None, include_param=False) -> Node:
     
     n = Node(type(kernel), parent=parent, full_name=kernel.name)
     
     if isinstance(kernel, tuple(BASE_KERNELS.values())):
+        if include_param:
+            n.parameters = [param.numpy() for param in kernel.parameters]
         return n
     elif isinstance(kernel, tuple(COMBINATION_KERNELS.values())):
         for child in kernel.kernels:
-            kernel_to_ast(child, parent=n)
+            kernel_to_ast(child, parent=n, include_param=include_param)
             
     return n
     
@@ -24,7 +26,11 @@ def kernel_to_ast(kernel: Kernel, parent: Optional[Node]=None) -> Node:
 def ast_to_kernel(node: Node) -> Kernel:
     
     if node.is_leaf:
-        return node.name()
+        kernel = node.name()
+        if hasattr(node, 'parameters'):
+            for k_param, n_param in zip(kernel.parameters, node.parameters):
+                k_param.assign(n_param)
+        return kernel
     
     return node.name([ast_to_kernel(child) for child in node.children])
 
@@ -50,6 +56,7 @@ if __name__ == "__main__":
     from gpflow.kernels import Linear, White, RBF, Polynomial, Product, Sum
     from anytree import LevelOrderIter, Node
     from random import choice
+    from gpflow.utilities import print_summary
     
     def test_kernel_to_ast():
         
@@ -114,10 +121,35 @@ if __name__ == "__main__":
         
         assert ast_str == '(linear * white + squaredexponential) * polynomial'
     
-    test_kernel_to_ast()
+    def test_has_parameters():
+        kernel = (RBF(variance=2., lengthscales=4.) + White(variance=1.5) * Linear(variance=5.)) * Polynomial(variance=1., offset=1)
+        
+        ast_kernel = kernel_to_ast(kernel, include_param=True)
+        
+        ast_manual = Node(Product)
+        sum_ = Node(Sum, parent=ast_manual)
+        Node(Polynomial, parent=ast_manual)
+        
+        Node(RBF, parent=sum_)
+        prod = Node(Product, parent=sum_)
+        
+        Node(White, parent=prod)
+        Node(Linear, parent=prod)
+        
+        
+        for a, b in zip(LevelOrderIter(ast_kernel), LevelOrderIter(ast_manual)):
+            assert a.name == b.name, "Not the same tree"
+            
+        kernel_after = ast_to_kernel(ast_kernel)
+        
+        print_summary(kernel_after)
     
-    test_ast_to_kernel()
+    # test_kernel_to_ast()
     
-    test_ast_to_text()
+    # test_ast_to_kernel()
+    
+    # test_ast_to_text()
+    
+    test_has_parameters()
     
     # all tests passed

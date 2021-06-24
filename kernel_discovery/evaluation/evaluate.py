@@ -1,3 +1,4 @@
+from operator import mod
 from typing import List
 import gpflow
 import numpy as np
@@ -5,7 +6,7 @@ import logging
 
 from anytree import Node
 from gpflow import optimizers
-from kernel_discovery.description.transform import ast_to_kernel
+from kernel_discovery.description.transform import ast_to_kernel, kernel_to_ast
 from kernel_discovery.description.utils import pretty_ast
 from gpflow.models.gpr import GPR
 from gpflow.optimizers.scipy import Scipy
@@ -52,9 +53,13 @@ class BaseEvaluator(object):
             opt_logs = optimizer.minimize(model.training_loss, model.trainable_variables, options=dict(maxiter=100))
         except:
             self.logger.error(f"Error occured when optimized: \n {pretty_ast(ast)}")
-            return model, np.Inf
+            optimized_ast = kernel_to_ast(model.kernel, include_param=True)
+            noise_variance = model.likelihood.variance.numpy()
+            return optimized_ast, noise_variance, np.Inf
         
-        return model, self.score(model)
+        optimized_ast = kernel_to_ast(model.kernel, include_param=True)
+        noise_variance = model.likelihood.variance.numpy()
+        return optimized_ast, noise_variance, self.score(model).numpy()
         
         
 class LocalEvaluator(BaseEvaluator):
@@ -78,39 +83,28 @@ class ParallelEvaluator(BaseEvaluator):
         self.cluster = cluster
         if cluster:
             ray.init(address=cluster)
-        ray.init()
-        
-    
-    def evaluate_single(self, x, y, ast):
-        
-        kernel = ast_to_kernel(ast)
-        kernel = self.initialize_hyperparmeters(kernel)
-        model = GPR(data=(x, y), kernel=kernel)
-        
-        optimizer = Scipy()
-        try:
-            opt_logs = optimizer.minimize(model.training_loss, model.trainable_variables, options=dict(maxiter=100))
-        except:
-            self.logger.error(f"Error occured when optimized: \n {pretty_ast(ast)}")
-            return np.Inf
-        
-        # TODO: return model paramters as well
-        return self.score(model).numpy()
+        else:
+            # if no cluster is specified, make a local one
+            ray.init()
             
         
     def evaluate(self, x, y, asts: List[Node]):
         
-        # TODO: set multiple return by @ray.remote(num_returns=3)
+        # x, y are shared for all jobs. This will reduce network traffic overhead
+        x_id = ray.put(x)
+        y_id = ray.put(y)
+        
         @ray.remote
-        def remote_evaluate(x, y, ast):
+        def remote_evaluate(ast):
+            x, y = ray.get(x_id), ray.get(y_id)
             return self.evaluate_single(x, y, ast)
         
         refs = []
         for ast in asts:
-            obj_ref = remote_evaluate.remote(x, y, ast)
+            obj_ref = remote_evaluate.remote(ast)
             refs.append(obj_ref)
         
-        return [ray.get(ref) for ref in refs]
+        return ray.get(refs)
 
 if __name__ == '__main__':
     
