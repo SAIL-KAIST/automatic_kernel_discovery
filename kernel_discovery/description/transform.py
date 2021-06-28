@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Callable, Optional
 
 from gpflow.utilities.traversal import parameter_dict
 from numpy.core.fromnumeric import var
@@ -21,15 +21,19 @@ def kernel_to_ast(kernel: Kernel, parent: Optional[Node]=None, include_param=Fal
             kernel_to_ast(child, parent=n, include_param=include_param)
             
     return n
-    
 
-def ast_to_kernel(node: Node) -> Kernel:
+def ast_to_kernel(node: Node, init_func: Callable=None) -> Kernel:
     
     if node.is_leaf:
         kernel = node.name()
         if hasattr(node, 'parameters'):
             for k_param, n_param in zip(kernel.parameters, node.parameters):
                 k_param.assign(n_param)
+        else:
+            if init_func is not None:
+                params = init_func(node.name)
+                for k_param, param in zip(kernel.parameters, params):
+                    k_param.assign(param)
         return kernel
     
     return node.name([ast_to_kernel(child) for child in node.children])

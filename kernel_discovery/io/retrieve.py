@@ -1,12 +1,13 @@
+""" 
+Use the library ```yfinance``` for Yahoo Finance API 
+"""
 import logging
-import time
-import datetime
+import os
 from pandas import to_datetime
 
 import yfinance as yf
 
-logging.basicConfig(level='INFO')
-logger = logging.getLogger(__file__)
+logger = logging.getLogger(os.path.basename(__file__))
 
 
 def convert_date(date):

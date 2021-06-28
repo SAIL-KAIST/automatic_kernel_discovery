@@ -1,3 +1,5 @@
+from ray.worker import get
+from yfinance import ticker
 from kernel_discovery.description.transform import ast_to_kernel
 from kernel_discovery.expansion.grammar import IMPLEMENTED_BASE_KERNEL_NAMES
 import logging
@@ -7,7 +9,7 @@ from gpflow import kernels
 import numpy as np
 from gpflow.kernels import White
 
-from kernel_discovery.preprocessing import preprocessing
+from kernel_discovery.preprocessing import get_datashape, preprocessing
 from kernel_discovery.description import kernel_to_ast, ast_to_text
 from kernel_discovery.expansion.expand import expand_asts
 from kernel_discovery.evaluation.evaluate import LocalEvaluator, ParallelEvaluator
@@ -16,13 +18,11 @@ from kernel_discovery.evaluation.evaluate import LocalEvaluator, ParallelEvaluat
 
 class BaseDiscovery(object):
     
-    def __init__(self, x, y) -> None:
-        self.x = x
-        self.y = y
+    def __init__(self) -> None:
         
         self.logger = logging.getLogger(self.__class__.__name__)
     
-    def discover(self):
+    def discover(self, x, y):
         raise NotImplementedError
     
 
@@ -30,8 +30,6 @@ class ABCDiscovery(BaseDiscovery):
     
     def __init__(
         self, 
-        x, 
-        y,
         search_depth: int = 6,
         rescale_x_to_upper_bound: Optional[float]=None,
         max_kernels_per_depth: Optional[int]=1,
@@ -41,7 +39,7 @@ class ABCDiscovery(BaseDiscovery):
         gammar_kwargs: Optional[Dict[str, Any]]=None
         ) -> None:
         
-        super().__init__(x, y)
+        super().__init__()
         
         self.search_depth = search_depth
         self.rescale_x_to_upper_bound = rescale_x_to_upper_bound
@@ -59,9 +57,10 @@ class ABCDiscovery(BaseDiscovery):
     def get_n_best(self, scored_kernels: Dict[str, Dict[str, Any]]):
         return sorted(scored_kernels, key=lambda kernel: scored_kernels[kernel]['score'])[:self.find_n_best]
     
-    def discover(self):
+    def discover(self, x, y):
         
-        x, y = preprocessing(self.x, self.y, rescale_x_to_upper_bound=self.rescale_x_to_upper_bound)
+        x, y = preprocessing(x, y, rescale_x_to_upper_bound=self.rescale_x_to_upper_bound)
+        datashape_x = get_datashape(x)
         
         self.logger.info(f'Starting the kernel discovery with base kernels `{IMPLEMENTED_BASE_KERNEL_NAMES}`')
         
@@ -109,10 +108,10 @@ class ABCDiscovery(BaseDiscovery):
 
 class HorseshoeDiscovery(BaseDiscovery):
     
-    def __init__(self, x, y) -> None:
-        super().__init__(x, y)
+    def __init__(self) -> None:
+        super().__init__()
     
-    def discover(self):
+    def discover(self, x, y):
         # TODO: implement this
         pass
     
@@ -121,12 +120,16 @@ if __name__ == "__main__":
     
     # unit test
     from kernel_discovery.description.describe import describe
-    x = np.array([0, 1, 2])
-    y = np.array([0, 1, 2])
+    from kernel_discovery.io import retrieve
     
-    discovery = ABCDiscovery(x, y)
+    ticker = 'MSFT'
+    start = '2021-01-01'
+    end = '2021-02-01'
+    x, y = retrieve(ticker_name=ticker, start=start, end=end)
     
-    results = discovery.discover()
+    discovery = ABCDiscovery()
+    
+    results = discovery.discover(x, y)
     desc = describe(list(results.values())[0]['ast'])
     print(results)
     print(desc)

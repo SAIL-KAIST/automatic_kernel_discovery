@@ -1,1 +1,0 @@
-Use the library ```yfinance``` for Yahoo Finance API

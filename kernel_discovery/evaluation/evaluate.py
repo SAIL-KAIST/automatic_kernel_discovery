@@ -1,3 +1,4 @@
+from kernel_discovery.preprocessing import DataShape, get_datashape
 from operator import mod
 from typing import List
 import gpflow
@@ -10,6 +11,7 @@ from kernel_discovery.description.transform import ast_to_kernel, kernel_to_ast
 from kernel_discovery.description.utils import pretty_ast
 from gpflow.models.gpr import GPR
 from gpflow.optimizers.scipy import Scipy
+from kernel_discovery.kernel import RBF, Linear, Periodic, Polynomial, init_kernel
 
 import ray
 
@@ -37,15 +39,16 @@ class BaseEvaluator(object):
     def evaluate(self, x, y, asts: List[Node]):
         
         raise NotImplementedError
-    
-    def initialize_hyperparmeters(self, kernel):
-        # TODO: implement this. hyperparameters are intialized according to its data shape
-        return kernel
-    
+
     
     def evaluate_single(self, x, y, ast):
-        kernel = ast_to_kernel(ast)
-        kernel = self.initialize_hyperparmeters(kernel)
+        
+        datashape_x, datashape_y = get_datashape(x), get_datashape(y)
+        def init_func(kernel_type):
+            return init_kernel(kernel_type, datashape_x, datashape_y, sd=1.)
+        
+        kernel = ast_to_kernel(ast, init_func=init_func)
+        
         model = GPR(data=(x, y), kernel=kernel)
         
         optimizer = Scipy()
