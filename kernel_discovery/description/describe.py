@@ -3,13 +3,15 @@ import ast
 import logging
 from enum import Enum
 import numpy as np
+import scipy.stats
+isf = scipy.stats.norm.isf
 from anytree import Node
 from gpflow.kernels.linears import Polynomial
 from kernel_discovery.description.simplify import simplify
 from kernel_discovery.kernel import Periodic, Product, Linear, Constant, RBF, White
 from collections import defaultdict
 from kernel_discovery.description.transform import ast_to_kernel, ast_to_text
-from kernel_discovery.description.utils import english_length, english_point
+from kernel_discovery.description.utils import english_length, english_point, to_ordinal
 
 poly_names = ['linear', 'quadratic', 'cubic', 'quartic', 'quintic']
 
@@ -144,8 +146,6 @@ class Monotonic(Enum):
 
 class ProductDesc():
     
-    
-    
     def __init__(self, prod: Node, x: np.array, monotonic, gradient, unit="") -> None:
         
         self.prod = prod
@@ -159,6 +159,7 @@ class ProductDesc():
         self.count = defaultdict()
         self.min_period = np.Inf
         self.periodics = []
+        self.periodic_lengthscales =[]
         
         self.lengthscale = 0
         
@@ -193,6 +194,7 @@ class ProductDesc():
                 self.count[Periodic] += 1
                 periodic = ast_to_kernel(k)
                 self.periodics += [periodic.period.numpy()]
+                self.periodic_lengthscales += [periodic.base_kernel.lengthscales.numpy()]
                 self.min_period = min(self.periodics)
             elif k.name is White:
                 self.count[White] += 1
@@ -355,31 +357,143 @@ class ProductDesc():
             else:
                 summary, desc, x_desc = self.describe_multiple_periodic()
 
+            self.summary = summary
+            self.full_desc.extend(desc)
+            self.extrap_desc.extend(x_desc)
             return True
         else:
             return False
     
+    
+    
     def decribe_one_and_only_periodic(self):
         
+        assert len(self.periodics) == 1
+        period = self.periodics[0]
         
+        summary = f"A periodic function with a period of {english_length(period, self.unit)}"
+        desc = [f"This component is periodic with a period of {english_length(period, self.unit)}"]
+        x_desc = [f"This component is assumed to continue periodically with a period of {english_length(period, self.unit)}"]
         
-        # TODO: implement this
-        return None, None, None
-    
+        if self.periodic_lengthscales[0] > 2:
+            desc += ["The shape of this function within each period is very smooth and resembles a sinuoid"]
+        else:
+            per_lengthscale = 0.5 * (self.periodics[0] + self.periodic_lengthscales[0]) / np.pi
+            desc += [f"This shape of this function within each period has a typical lengthscale of {english_length(per_lengthscale, self.unit)}"]
+        
+        return summary, desc, x_desc
+            
     def describe_one_periodic_with_smooth(self):
         
-        # TODO: implement this
-        return None, None, None
+        assert len(self.periodics) == 1
+        assert self.count[RBF] > 0
+        
+        period = self.periodics[0]
+        lower_per = 1./ (1./period + isf(0.25) / self.lengthscale)
+        upper_per = 1./ (1./period - isf(0.25) / self.lengthscale)
+        
+        x_desc = ["This component is assumed to continue to be approximately periodic"]
+        if upper_per < 0:
+            
+            summary = f"A very approximately periodic function with a period of {english_length(period, self.unit)}"
+            desc = [f"This component is very approximately periodic with a period of {english_length(period, self.unit)}"]
+            desc += [f"Across periods, the shape of this function varies smoothly with a typical lengthscale of {english_length(self.lengthscale, self.unit)}"]
+            desc += ["Since this lengthscale is small relative to the period, this component may more closely resemble a non-periodic smooth function"]
+            x_desc +=["The shape of the function is assumed to vary smoothly between periods but will quickly return to the prior"]
+        else:
+            summary = f"A approximately periodic function with a period of {english_length(period, self.unit)}"
+            desc = [f"This component is approximately periodic with a period of {english_length(period, self.unit)}"]
+            if self.lengthscale > 0.5 * self.domain_range:
+                desc +=["Across periods, the shape of this function varies very smoothly"]
+                x_desc += ["The shape of the function is assumed to vary very smoothly between periods but will eventually return to the prior"]
+            else:
+                desc += [f"Across periods, the shape of this function varies smoothly with a typical lengthscale of {english_length(self.lengthscale, self.unit)}"]
+                desc += ["Since this lengthscale is small relative to the period, this component may more closely resemble a non-periodic smooth function"]
+                x_desc +=["The shape of the function is assumed to vary smoothly between periods but will quickly return to the prior"]
+
+            if self.periodic_lengthscales[0] > 2:
+                desc += ["The shape of this function within each period is very smooth and resembles a sinuoid"]
+            else:
+                per_lengthscale = 0.5 * (self.periodics[0] + self.periodic_lengthscales[0]) / np.pi
+                desc += [f"This shape of this function within each period has a typical lengthscale of {english_length(per_lengthscale, self.unit)}"]
+        
+        x_desc += ["This prior is entirely uncertain about the phrase of the periodic function"]
+        x_desc += ["Consequently, the pointwiase posterior will appear to lose it periodicity, but this merely reflects the uncertainty in the shape and phrase of the function"]
+        x_desc += ["[This is a placeholder for a description of how quickly the posterior will start resemble the prior]"]        
+        return summary, desc, x_desc
     
     
     def describe_one_periodic_with_linear(self):
         
-        return None, None, None
+        assert len(self.periodics) == 1
+        period = self.periodics[0]
+        
+        summary = f"A periodic function with a period of {english_length(period, self.unit)}"
+        desc = [f"This component is periodic with a period of {english_length(period, self.unit)} with with varying amplitude"]
+        x_desc = [f"This component is assumed to continue periodically with a periord of {english_length(period, self.unit)} but with varying amplitude"]
+        
+        summary_, desc_, x_desc_ = translate_parametric_window(X=self.x,
+                                                               unit=self.unit,
+                                                               lin_count=self.count[Linear],
+                                                               lin_location=self.linear_location,
+                                                               quantity="amplitude",
+                                                               component="function")
+        summary += f" but {summary_}"
+        desc += [desc_]
+        x_desc += [x_desc_]
+        
+        return summary, desc, x_desc
             
     def describe_one_periodic_with_mix(self):
-        return None, None, None
+        assert len(self.periodics) == 1
+        assert self.count[RBF] > 0
+        assert self.count[Linear] > 0
+        
+        period = self.periodics[0]
+        lower_per = 1./ (1./period + isf(0.25) / self.lengthscale)
+        upper_per = 1./ (1./period - isf(0.25) / self.lengthscale)
+        
+        var_summary, var_desc, var_x_desx = translate_parametric_window(X=self.x,
+                                                                        unit=self.unit,
+                                                                        lin_count=self.count[Linear],
+                                                                        lin_location=self.linear_location,
+                                                                        quantity="applitude",
+                                                                        component="function")
+        
+        x_desc = [f"This component is assumed to continue to be approximately periodic"]
+        if upper_per > 0:
+            summary = f"A very approximately periodic function with a period of {english_length(period, self.unit)} and {var_summary}"
+            desc = [f"This component is very approximately periodic with a period of {english_length(period, self.unit)} and varying marginal starndard deviation"]
+            desc += [f"Across periods, the shape of this function varies smoothly with a typical lengthscale of {english_length(self.lengthscale, self.unit)}"]
+            desc += ["Since this lengthscale is small relative to the period, this component may more closely resemble a non-periodic smooth function"]
+            x_desc += ["The shape of the function is assumed to vary smoothly between periods but will quickly return to the prior"]
+        else:
+            summary = f"A approximately periodic function with a period of {english_length(period, self.unit)} and {var_summary}"
+            desc = [f"This component is approximately periodic with a period of {english_length(period, self.unit)} and varying marginal starndard deviation"]
+            if self.lengthscale > 0.5 * self.domain_range:
+                desc += ["Across periods, the shape of this function varies very smoothly"]
+                x_desc += ["The shape of this function is assumed to vary very smoothly between periods but will eventually return to the prior"]
+            else:
+                desc += [f"Across periods, the shape of this function varies smoothly with a typical lengthscale of {english_length(self.lengthscale, self.unit)}"]
+                x_desc += ["The shape of the function is assumed to vary smoothly between periods but will quickly return to the prior"]
+        
+            if self.periodic_lengthscales[0] > 2:
+                desc += ["The shape of this function within each period is very smooth and resembles a sinuoid"]
+            else:
+                per_lengthscale = 0.5 * (self.periodics[0] + self.periodic_lengthscales[0]) / np.pi
+                desc += [f"This shape of this function within each period has a typical lengthscale of {english_length(per_lengthscale)}"]
+        
+        desc += [var_desc]
+        x_desc += [var_x_desx]
+        x_desc += ["The prior is entirely uncertain about the phase of the periodic function"]
+        x_desc += ["Consequently the pointwise posterior will appear to lose its periodicity, but this merely reflects the uncertainty in the shape and phase of the function"]
+        x_desc += ["[This is a placeholder for a description of how quickly the posterior will start to resemble the prior]"]
+        return summary, desc, x_desc
     
     def describe_multiple_periodic(self):
+        
+        assert self.count[Periodic] > 1
+        
         if self.count[RBF] > 0:
             summary = "An approximate product of"
         else:
@@ -394,15 +508,28 @@ class ProductDesc():
             desc += [f"Across periods the shape of this function varies smoothly with a typical lengthscale of {english_length(self.lengthscale, self.unit)}"]
             x_desc +=["Across periods the shape of this function is assumed to continue to vary smoothly but will return to the prior"]
             x_desc +=["The prior is entirely uncertain about the phase of the periodic functions"]
-            x_desc +=["Consequently the pointwise posterior will appear to lose its periodicity," +
-                      "but this merely reflects the uncertainty in the shape and phase of the functions"]
+            x_desc +=["Consequently the pointwise posterior will appear to lose its periodicity, but this merely reflects the uncertainty in the shape and phase of the functions"]
             x_desc +=["[This is a placeholder for a description of how quickly the posterior will start to resemble the prior]"]
         
         if self.count[Linear] > 0:
-            # TODO
-            pass
+            var_summary, var_desc, var_x_desc = translate_parametric_window(X=self.x,
+                                                                            unit=self.unit,
+                                                                            lin_count=self.count[Linear],
+                                                                            lin_location=self.linear_location,
+                                                                            quantity="amplitude",
+                                                                            component="function")
+            summary += f" and {var_summary}"
+            desc += [var_desc]
+            x_desc += [var_x_desc]
         
-        
+        for i, (period, periodic_lengthscale) in enumerate(zip(self.periodics, self.periodic_lengthscales)):
+            desc += [f"The {to_ordinal(i)} periodic function has a period of {english_length(period, self.unit)}"]
+            if periodic_lengthscale > 2:
+                desc += ["The shape of this function within each period is very smooth and resembles a sinuoid"]
+            else:
+                per_lengthscale = 0.5 * (period + periodic_lengthscale) / np.pi
+                desc += [f"This shape of this function within each period has a typical lengthscale of {english_length(per_lengthscale, self.unit)}"]
+            
         return summary, desc, x_desc
     
 
@@ -501,10 +628,46 @@ if __name__ == "__main__":
         result = prod_desc.translate()
         print(result)
         
+    def test_translate_prod_6():
+        k = Periodic()
+        
+        x = np.linspace(0, 1, 100)[:, None]
+        montonic = 1
+        gradient = 1.
+        prod = kernel_to_ast(k)
+        prod_desc = ProductDesc(prod, x, montonic, gradient)
+        result = prod_desc.translate()
+        print(result)
+        
+        k = Periodic() * RBF()
+        prod = kernel_to_ast(k)
+        prod_desc = ProductDesc(prod, x, montonic, gradient)
+        result = prod_desc.translate()
+        print(result)
+        
+        k = Periodic() * Linear()
+        prod = kernel_to_ast(k)
+        prod_desc = ProductDesc(prod, x, montonic, gradient)
+        result = prod_desc.translate()
+        print(result)
+        
+        k = Periodic() * Linear() * RBF()
+        prod = kernel_to_ast(k)
+        prod_desc = ProductDesc(prod, x, montonic, gradient)
+        result = prod_desc.translate()
+        print(result)
+        
+        k = Periodic() * Periodic()
+        prod = kernel_to_ast(k)
+        prod_desc = ProductDesc(prod, x, montonic, gradient)
+        result = prod_desc.translate()
+        print(result)
+        
         
     # test_describe()
     # test_translate_prod_1()
     # test_translate_prod_2()
     # test_translate_prod_3()
     # test_translate_prod_4()
-    test_translate_prod_5()
+    # test_translate_prod_5()
+    test_translate_prod_6()

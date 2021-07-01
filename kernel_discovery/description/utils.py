@@ -4,7 +4,7 @@ import time
 import numpy as np
 
 english_months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-
+ordinal_numbers = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eigth', 'ninth', 'tenth']
 
 def pretty_ast(ast: Node) -> str:
     
@@ -57,3 +57,11 @@ def english_point(val, unit, X):
     else:
         warnings.warn('I do not know about this unit of measurement : %s' % unit)
         return 'Unrecognised format'
+    
+def to_ordinal(i):
+    
+    if i < len(ordinal_numbers) -1 :
+        return ordinal_numbers[i]
+    else:
+        return f"{i+1}th"
+    
