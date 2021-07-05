@@ -1,0 +1,94 @@
+<!doctype html>
+<meta charset="utf-8">
+<script src="https://distill.pub/template.v1.js"></script>
+
+<dt-article>
+  <h1>An automatic report for the data set:  {{dataset}} </h1>
+    <p>This report was produced by the Automatic Bayesian Covariance Discovery (ABCD) algorithm</p>
+
+    <h2>Executive summary</h2>
+
+    <p>The raw data and full model posterior with extrapolations are shown in figure {}</p> <!-- TODO: add figure reference -->
+
+    <p><figure class="l-body-outset" id="raw_and_fit">
+
+    </figure></p>
+
+    <p>The structure search algorithm has identified {{n_components}} additive components in the data.</p>
+
+    <!-- How much variance is explained by the fit -->
+
+    <!--Comment of MAE-->
+
+    <p>Short summaries of the additive components are as follows:</p>
+    <ul>
+      {% for n in short_descriptions %}
+      <li>{{n}}</li>
+      {% endfor %}
+    </ul>
+
+    <!--Summary of statistic table-->
+
+    <!-- check for lack of model fit -->
+
+    <!--Describe the structure of ducument-->
+
+    <p>The rest of the document is structured as follows. In <a href="#discussion"> detailed discussion section</a>, the forms of additive components are described and their posterior distribution 
+      are displayed. In the <a href="#extrap">extraoplation section</a>, the modelling assumptions of each components are discussed with reference 
+      to how this affects the extrapolations made by the model. <a href="#check">Model checking section</a> discusses model checking statistics, with plots showing the form of 
+      any detected discrepancies between the model and observed data.
+    </p>
+
+<!--Detail discussion-->
+<h2 id="discusssion">Detailed discussion of additive components</h2>
+
+<!--
+  Structured as follows:
+  -full description
+  - Residual variance
+
+-->
+
+<!--Extrapolation-->
+<h2 id="extrap">Extrapolations</h2>
+<p>
+  Summaries of the posterior distribution of the full model are shown in this <a href="#fig:extrap">figure</a>
+</p>
+<figure id="fig:extrap">
+  <!--TODO: Figure here-->
+  <caption>Full model posterior with extrapolation. Mean and pointwase variance (left) and three random samples (right)</caption>
+</figure>
+<p>
+  Below are descriptions of the modelling assumptions associated with each additive component and how they affect the predictive posterior.
+  Plots of the pointwise posterior and samples from the posterior are also presented, showing extrapolations from each component and the cuulative sum of components.
+</p>
+<!--TODO: each components-->
+
+<!--Model checking-->
+<h2 id="check">Model checking</h2>
+<p>
+  Several posterior predictive checks have been performed to assess how well the model describes the observed data.
+  These tests take the form of comparing statistics evaluated on samples from the prior and posterior distributions for each additive components.
+  The statistics are derived from autocorrelation function (ACF) estimates, periodograms and quantile-quantile (qq) plots.
+</p>
+
+<p>
+  The <a href="#tab:check">following table</a> display cummulative probability and p-value estimates for these quantities.
+Cummulative probabilities near 0/1 indicate that the test statistic was lower/higher under the poseterior compared to the prior unexpectedly often, i.e., they contain the same 
+information as a p-value for a two-tailed test and they also express if the test statistic was higher or lower than expected.
+p-values near 0 indicates that the test statistic was larger in magnitude under the posterior comparted to the prior unexpectedly often.
+</p>
+
+<table id="tab:check">
+  <TR>
+    <td> ""</td>
+    <td> ""</td>
+    <td> ""</td>
+    <td> ""</td>
+  </TR>
+  <caption>Model checking statistics for each components. Cummulative probabilities for minimun of autocorrelation function (ACF) and its location.
+    Cummulative probabilities for maximum of periodogram and its location.
+    p-value for maximum and minimun deviation of QQ-plot from straight line.
+  </caption>
+</table>
+</dt-article>
