@@ -35,6 +35,7 @@ class Linear(gpflow_Linear):
     def __init__(self, variance=1., location=0., active_dims=None):
         super().__init__(variance=variance, active_dims=active_dims)
         self.location = gpflow.Parameter(location)
+        self._validate_ard_active_dims(self.location)
 
     def K(self, X, X2):
         X = X - self.location

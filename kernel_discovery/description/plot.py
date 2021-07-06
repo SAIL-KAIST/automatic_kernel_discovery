@@ -1,16 +1,21 @@
 """
 Python implemetation of https://github.com/jamesrobertlloyd/gpss-research/blob/master/source/matlab/component_stats_and_plots.m
 """
+from numpy import random
+from numpy.core.fromnumeric import var
+from kernel_discovery.description.describe import ProductDesc
 import logging
-from typing import List
+from typing import Callable, List
 import numpy as np
 from numpy.core.defchararray import array
 import tensorflow as tf
 from anytree import Node
-from kernel_discovery.description.transform import ast_to_kernel
+from kernel_discovery.description.transform import ast_to_kernel, ast_to_text, kernel_to_ast
 from kernel_discovery.description.simplify import simplify, extract_envelop
 from kernel_discovery.kernel import Sum, Kernel
 from sklearn.model_selection import KFold
+from scipy.spatial.distance import cdist
+
 
 
 import matplotlib.pyplot as plt
@@ -149,283 +154,13 @@ def get_gradient(x, data_mean: np.array, envelop_diag: np.array):
         return 0.
     else:
         return (data_mean_thresh[-1] - data_mean_thresh[0]) / (x_thresh[-1] - x_thresh[0])
-
-
-def component_stats(x: np.array, y: np.array, kernel: Node, noise: np.array, order: List):
-
-    x_left = np.min(x) - (np.max(x) - np.min(x)) * left_extend
-    x_right = np.max(x) + (np.max(x) - np.min(x)) * right_extend
-    x_range = np.linspace(x_left, x_right, num_interp_points)[:, None]
-    xrange_no_extrap = np.linspace(
-        np.min(x), np.max(x), num_interp_points)[:, None]
-
-    # make sure to simplify kernel which returns sum of product kernels
-    kernel = simplify(kernel)
-    envelop = extract_envelop(kernel)
-    kernel = ast_to_kernel(kernel)
-    envelop = ast_to_kernel(envelop)
-
-    if isinstance(kernel, Sum):
-        components = kernel.kernels
-        envelop_components = envelop.kernels
-    else:
-        components = [kernel]
-        evelop_components = [envelop]
-
-    n_components = len(components)
-    assert len(order) == n_components
-    components = [components[i] for i in order]
-
-    complete_mean, complete_var = compute_mean_var(
-        x, x_range, y, kernel=kernel, component=kernel, noise=noise)
-
-    # plot raw data
-    plot_gp(x, y, x_range, complete_mean, complete_var, data_only=True)
-    logger.info("Plot raw data")
-
-    # plot full posterior
-    plot_gp(x, y, x_range, complete_mean, complete_var, data_only=True)
-    logger.info("Plot full posterior")
-
-    # plot sample from full posterior
-    complete_mean, complete_covar = compute_mean_var(
-        x, x_range, y, kernel=kernel, component=kernel, noise=noise, full_cov=True)
-    sample_plot_gp(x, x_range, complete_mean, complete_covar)
-    logger.info("Plot sample")
-
-    if len(components) == 1:
-        return
-
-    # some statistics includeing SNR, var, monotonic, gradient
-    SNRs, vars, monotonic, gradient = [], [], [], []
-
-    for i, (comp, envelop_comp) in enumerate(zip(components, envelop_components)):
-
-        mean, var = compute_mean_var(
-            x, xrange_no_extrap, y, kernel, comp, noise)
-
-        # this is for compute some statistic
-        d_mean, d_var = compute_mean_var(x, x, y, kernel, comp, noise)
-
-        # computes some statistics
-        SNRs += [10 * np.log10(np.sum(d_mean**2) / np.sum(d_var))]
-        vars += [(1 - np.var(y - d_mean) / np.var(y)) * 100]
-        envelop_diag = envelop_comp.K_diag(x).numpy()
-        monotonic += [get_monotonic(d_mean, envelop_diag)]
-        gradient += [get_gradient(x, d_mean, envelop_diag)]
-
-        excluded_kernel = Sum([k for k in components if k is not comp])
-        removed_mean, _ = compute_mean_var(
-            x, x, y, kernel, component=excluded_kernel, noise=noise)
-        plot_gp(x, removed_mean, xrange_no_extrap, mean, var)
-        logger.info(f"Plot posterior of component {i+1}/{len(components)}")
-
-        mean, covar = compute_mean_var(
-            x, x_range, y, kernel, comp, noise, full_cov=True)
-        plot_gp(x, removed_mean, x_range, mean, np.diag(covar))
-        logger.info(
-            f"Plot posterior of component {i+1}/{len(components)} with extrapolation")
-
-        sample_plot_gp(x, x_range, mean, covar)
-        logger.info(f"Plot sample for component {i+1}/{len(components)}")
-
-    return {"SNRs": SNRs,
-            "vars": vars,
-            "monotonic": monotonic,
-            "gradient": gradient}
-
-
-def cummulative_plots(x: np.array, y: np.array, kernel: Node, noise: np.array, order: List):
-
-    x_left = np.min(x) - (np.max(x) - np.min(x)) * left_extend
-    x_right = np.max(x) + (np.max(x) - np.min(x)) * right_extend
-    x_range = np.linspace(x_left, x_right, num_interp_points)[:, None]
-    xrange_no_extrap = np.linspace(
-        np.min(x), np.max(x), num_interp_points)[:, None]
-
-    kernel = simplify(kernel)
-    kernel = ast_to_kernel(kernel)
-
-    if isinstance(kernel, Sum):
-        components = kernel.kernels
-    else:
-        components = [kernel]
-
-    n_components = len(components)
-    assert len(order) == n_components
-    components = [components[i] for i in order]
-
-    if len(components) == 1:
-        return
-
-    # some statistics: cummulative SNR, cumlutive vars, cumulativate residual vars
-    cum_SNRs, cum_vars, cum_res_vars = [], [], []
-
-    residual = y
-    accumulate_kernels = []
-    for i, comp in enumerate(components):
-
-        accumulate_kernels.append(comp)
-        current_kernel = Sum(accumulate_kernels)
-
-        # plot no extrapolation
-        mean, var = compute_mean_var(
-            x, xrange_no_extrap, y, kernel=kernel, component=current_kernel, noise=noise)
-        plot_gp(x, y, xrange_no_extrap, mean, var)
-        logger.info(
-            f"Plot sum of components up to component {i+1}/{len(components)}")
-
-        # plot with extrapolation
-        mean, covar = compute_mean_var(
-            x, x_range, y, kernel=kernel, component=current_kernel, noise=noise, full_cov=True)
-        plot_gp(x, y, x_range, mean, np.diag(covar))
-        logger.info(
-            f"Plot sum of components up to component {i+1}/{len(components)} with extrapolation")
-
-        # plot random sample with extrapolation
-        sample_plot_gp(x, x_range, mean, covar)
-        logger.info(
-            f"Plot sample for sum of components up to component {i+1}/{len(components)} with extrapolation")
-
-        d_mean, d_var = compute_mean_var(
-            x, x, y, kernel=kernel, component=current_kernel, noise=noise)
-
-        # gather statistics here
-        cum_SNRs += [10 * np.log10(np.sum(d_mean**2) / np.sum(d_var))]
-        cum_vars += [(1. - np.var(y - d_mean) / np.var(y)) * 100]
-        cum_res_vars += [(1. - np.var(y - d_mean) / np.var(residual)) * 100]
-
-        # residual plot
-        residual = y - np.reshape(d_mean, y.shape)
-        if i < len(components) - 1:
-            anti_kernels = [
-                k for k in components if k not in accumulate_kernels]
-            sum_anti_kernel = Sum(anti_kernels)
-
-            mean, var = compute_mean_var(
-                x, xrange_no_extrap, residual, kernel=kernel, component=sum_anti_kernel, noise=noise)
-            plot_gp(x, residual, xrange_no_extrap, mean, var)
-            logger.info(
-                f"Plot residual after component {i+1}/{len(components)}")
-
-    return {"cum_SNRs": cum_SNRs,
-            "cum_vars": cum_vars,
-            "cum_res_vars": cum_res_vars}
-
-
-def order_by_mae_reduction(x: np.array, y: np.array, kernel: Node, noise: np.array):
-
-    kernel = simplify(kernel)
-    kernel = ast_to_kernel(kernel)
-
-    if isinstance(kernel, Sum):
-        components = kernel.kernels
-    else:
-        components = [kernel]
-
-    # 10 folds cross validates
-    n_folds = 10
-    kf = KFold(n_splits=n_folds)
-
-    idx = []
-    maes = np.zeros((len(components), 1))
-    mae_reductions = np.zeros((len(components), 1))
-    mav_data = np.mean(np.abs(y))
-
-    # stack
-    cumulative_kernels = []
-
-    def validate_errors(kernel, x_train, y_train, x_val, y_val):
-        K_train = kernel.K(x_train)
-        if noise is not None:
-            K_train = K_train + \
-                tf.eye(x_train.shape[0], dtype=K_train.dtype) * noise
-
-        K_train_val = kernel.K(x_train, x_val)
-        K_val = kernel.K(x_val)
-
-        y_predict, _ = gaussian_conditional(Kmn=K_train_val,
-                                            Lmm=tf.linalg.cholesky(K_train),
-                                            Knn=K_val,
-                                            f=y_train,
-                                            full_cov=False)
-
-        error = np.mean(np.abs(y_val - y_predict))
-        return error
-
-    previous_mae = mav_data
-    for i in range(len(components)):
-        best_mae = np.Inf
-        for j in range(len(components)):
-            if j not in idx:
-                # pop first
-                cumulative_kernels.append(components[j])
-                current_kernel = Sum(cumulative_kernels)
-                this_mae = 0.
-                for train_idx, val_idx in kf.split(x):
-                    x_train, y_train = x[train_idx], y[train_idx]
-                    x_val, y_val = x[val_idx], y[val_idx]
-                    error = validate_errors(
-                        current_kernel, x_train, y_train, x_val, y_val)
-                    this_mae += error
-                this_mae /= n_folds
-
-                if this_mae < best_mae:
-                    best_j = j
-                    best_mae = this_mae
-
-                cumulative_kernels.pop()
-
-        maes[i] = best_mae
-        mae_reductions[i] = (1. - best_mae/previous_mae) * 100
-        previous_mae = best_mae
-        idx += [best_j]
-        cumulative_kernels.append(components[best_j])
-
-    mae_data = {"MAEs": maes,
-                "MAE_reductions": mae_reductions,
-                "MAV_data": mav_data}
-    return idx, mae_data
-
-
-def checking_stats(x: np.array, y: np.array, kernel: Node, noise: np.array, order: List):
-
-    # TODO: see https://github.com/jamesrobertlloyd/gpss-research/blob/2a64958a018f1668f7b8eedf33c4076a63af7868/source/matlab/checking_stats.m
-
-    kernel = simplify(kernel)
-    kernel = ast_to_kernel(kernel)
-
-    if isinstance(kernel, Sum):
-        components = kernel.kernels
-    else:
-        components = [kernel]
-
-    n_components = len(components)
-    assert len(order) == n_components
-    components = [components[i] for i in order]
-
-    complete_sigma = kernel.K(x)
-    if noise is not None:
-        complete_sigma = complete_sigma + \
-            tf.eye(x.shape[0], dtype=complete_sigma.dtype) * noise
-
-    L_sigma = tf.linalg.cholesky(complete_sigma)
-
-    for comp in components:
-
-        decomp_sigma = comp.K(x)
-        data_mean, data_covar = gaussian_conditional(Kmn=decomp_sigma,
-                                                     Lmm=L_sigma,
-                                                     Knn=decomp_sigma,
-                                                     f=y,
-                                                     full_cov=True)
-
-
+    
 class Component():
     
     def __init__(self, kernel) -> None:
         
         self.kernel = kernel
+        self.x = None
         self.envelop = None
         
         self.snr = None
@@ -440,7 +175,21 @@ class Component():
         self.mae = None
         self.mae_reduction = None
         
-    
+    def make_description(self):
+        prod = kernel_to_ast(self.kernel)
+        assert self.monotonic is not None
+        descriptor = ProductDesc(prod, self.x, self.monotonic, self.gradient)
+        summary, full_desc, extrap_desc = descriptor.translate()
+        self.summary = summary
+        self.full_desc = ".\n".join(full_desc)
+        self.extrap_desc = ".\n".join(extrap_desc)
+        
+    def __repr__(self) -> str:
+        kernel_str = ast_to_text(kernel_to_ast(self.kernel))
+        
+        return f"kernel = [{kernel_str}] \n \t SNR: {self.snr:.2f}, var: {self.var:.2f}, monotonic: {self.monotonic}, \n\t cum SNR: {self.cum_snr:.2f}, " + \
+            f"cum var: {self.cum_var:.2f}, cum residual var: {self.cum_res_var:.2f}, \n\t MAE: {self.mae:.2f}, MAE reduction: {self.mae_reduction:.2f}"
+        
 
 class Result():
     
@@ -483,6 +232,8 @@ class Result():
         
         self.order_by_mae_reduction()
         self.individual_component_stats_and_plots()
+        self.cummulative_stats_and_plots()
+        self.checking_stats()
         
     
     def order_by_mae_reduction(self):
@@ -551,9 +302,10 @@ class Result():
         assert len(self.components) == 0
         for i in idx:
             component = Component(self.kernels[i])
+            component.x = self.x
             component.envelop = self.envelop_kernels[i]
-            component.mae = maes[i]
-            component.mae_reduction = mae_reductions[i]
+            component.mae = maes[i].squeeze()
+            component.mae_reduction = mae_reductions[i].squeeze()
             # add to the list
             self.components += [component]
         
@@ -589,12 +341,6 @@ class Result():
         sample_plot_gp(self.x, self.x_range, complete_mean, complete_covar)
         self.logger.info("Plot sample")
 
-        if len(self.components) == 1:
-            return
-
-        # some statistics includeing SNR, var, monotonic, gradient
-        SNRs, vars, monotonic, gradient = [], [], [], []
-
         for i, component  in enumerate(self.components):
             comp = component.kernel
             envelop_comp = component.envelop
@@ -609,44 +355,281 @@ class Result():
             d_mean, d_var = compute_mean_var(self.x, self.x, self.y, self.complete_kernel, comp, self.noise)
 
             # computes some statistics
-            SNRs += [10 * np.log10(np.sum(d_mean**2) / np.sum(d_var))]
-            vars += [(1 - np.var(self.y - d_mean) / np.var(self.y)) * 100]
+            component.snr = 10 * np.log10(np.sum(d_mean**2) / np.sum(d_var))
+            component.var = (1 - np.var(self.y - d_mean) / np.var(self.y)) * 100
             envelop_diag = envelop_comp.K_diag(self.x).numpy()
-            monotonic += [get_monotonic(d_mean, envelop_diag)]
-            gradient += [get_gradient(self.x, d_mean, envelop_diag)]
+            component.monotonic = get_monotonic(d_mean, envelop_diag)
+            component.gradient = get_gradient(self.x, d_mean, envelop_diag)
 
-            excluded_kernel = Sum([k.kernel for k in self.components if k is not component])
-            removed_mean, _ = compute_mean_var(self.x, 
-                                               self.x, 
-                                               self.y, 
-                                               kernel=self.complete_kernel, 
-                                               component=excluded_kernel,
-                                               noise=self.noise)
-            plot_gp(self.x, removed_mean, self.xrange_no_extrap, mean, var)
-            logger.info(f"Plot posterior of component {i+1}/{len(self.components)}")
+            if self.n_components > 1:
+                excluded_kernel = Sum([k.kernel for k in self.components if k is not component])
+                removed_mean, _ = compute_mean_var(self.x, 
+                                                self.x, 
+                                                self.y, 
+                                                kernel=self.complete_kernel, 
+                                                component=excluded_kernel,
+                                                noise=self.noise)
+                plot_gp(self.x, removed_mean, self.xrange_no_extrap, mean, var)
+                self.logger.info(f"Plot posterior of component {i+1}/{len(self.components)}")
 
-            mean, covar = compute_mean_var(self.x, 
+                mean, covar = compute_mean_var(self.x, 
                                            self.x_range,
                                            self.y, 
                                            kernel=self.complete_kernel, 
                                            component=comp, 
                                            noise=self.noise,
                                            full_cov=True)
-            plot_gp(self.x, removed_mean, self.x_range, mean, np.diag(covar))
-            logger.info(
-                f"Plot posterior of component {i+1}/{len(self.components)} with extrapolation")
+                plot_gp(self.x, removed_mean, self.x_range, mean, np.diag(covar))
+                self.logger.info(
+                    f"Plot posterior of component {i+1}/{len(self.components)} with extrapolation")
 
+                sample_plot_gp(self.x, self.x_range, mean, covar)
+                self.logger.info(f"Plot sample for compon`ent {i+1}/{len(self.components)}")            
+
+    def cummulative_stats_and_plots(self):
+        
+        self.logger.info("Compute cummulative statistics and cummulative plots")
+        
+        residual = self.y
+        accumulate_kernels = []
+        for i, component in enumerate(self.components):
+
+            accumulate_kernels.append(component.kernel)
+            current_kernel = Sum(accumulate_kernels)
+
+            # plot no extrapolation
+            mean, var = compute_mean_var(self.x, 
+                                         self.xrange_no_extrap, 
+                                         self.y, 
+                                         kernel=self.complete_kernel, 
+                                         component=current_kernel, 
+                                         noise=self.noise)
+            plot_gp(self.x, self.y, self.xrange_no_extrap, mean, var)
+            self.logger.info(f"Plot sum of components up to component {i+1}/{self.n_components}")
+
+            # plot with extrapolation
+            mean, covar = compute_mean_var(self.x, 
+                                           self.x_range, 
+                                           self.y, 
+                                           kernel=self.complete_kernel, 
+                                           component=current_kernel, 
+                                           noise=self.noise, 
+                                           full_cov=True)
+            plot_gp(self.x, self.y, self.x_range, mean, np.diag(covar))
+            self.logger.info(f"Plot sum of components up to component {i+1}/{self.n_components} with extrapolation")
+
+            # plot random sample with extrapolation
             sample_plot_gp(self.x, self.x_range, mean, covar)
-            logger.info(f"Plot sample for component {i+1}/{len(self.components)}")
+            self.logger.info(f"Plot sample for sum of components up to component {i+1}/{self.n_components} with extrapolation")
 
-        # return {"SNRs": SNRs,
-        #         "vars": vars,
-        #         "monotonic": monotonic,
-        #         "gradient": gradient}
+            d_mean, d_var = compute_mean_var(self.x, 
+                                             self.x, 
+                                             self.y, 
+                                             kernel=self.complete_kernel, 
+                                             component=current_kernel, 
+                                             noise=self.noise)
+
+            # gather statistics here
+            component.cum_snr = 10 * np.log10(np.sum(d_mean**2) / np.sum(d_var))
+            component.cum_var = (1. - np.var(self.y - d_mean) / np.var(self.y)) * 100
+            component.cum_res_var = (1. - np.var(self.y - d_mean) / np.var(residual)) * 100
+
+            # residual plot
+            residual = self.y - np.reshape(d_mean, self.y.shape)
+            if i < self.n_components - 1:
+                anti_kernels = [
+                    comp.kernel for comp in self.components if comp.kernel not in accumulate_kernels]
+                sum_anti_kernel = Sum(anti_kernels)
+
+                mean, var = compute_mean_var(self.x, 
+                                             self.xrange_no_extrap, 
+                                             residual, 
+                                             kernel=self.complete_kernel, 
+                                             component=sum_anti_kernel, 
+                                             noise=self.noise)
+                plot_gp(self.x, residual, self.xrange_no_extrap, mean, var)
+                self.logger.info(f"Plot residual after component {i+1}/{self.n_components}")
+
+    def checking_stats(self):
+        
+        # TODO: see https://github.com/jamesrobertlloyd/gpss-research/blob/2a64958a018f1668f7b8eedf33c4076a63af7868/source/matlab/checking_stats.m
+        self.logger.info("Perform model check")
+
+        complete_sigma = self.complete_kernel.K(self.x)
+        if self.noise is not None:
+            complete_sigma = complete_sigma + tf.eye(self.x.shape[0], dtype=complete_sigma.dtype) * self.noise
+
+        L_sigma = tf.linalg.cholesky(complete_sigma)
+
+        for component in self.components:
+
+            decomp_sigma = component.kernel.K(self.x)
+            data_mean, data_covar = gaussian_conditional(Kmn=decomp_sigma,
+                                                        Lmm=L_sigma,
+                                                        Knn=decomp_sigma,
+                                                        f=self.y,
+                                                        full_cov=True)
+            
+            samples = 1000
+            random_indices = np.random.permutation(self.x.shape[0])
+            x_post = self.x[random_indices]
+            y_data_post = self.y[random_indices]
+            
+            decomp_sigma_post = component.kernel.K(x_post)
+            
+            data_mean_post = gaussian_conditional(Kmn=decomp_sigma_post,
+                                                  Lmm=L_sigma,
+                                                  Knn=decomp_sigma_post,
+                                                  f=self.y)
+            
+            y_post =(y_data_post - data_mean_post) # TODO: random sample
+            
+            random_indices = np.random.permutation(self.x.shape[0])
+            x_data, y_data = self.x[random_indices], self.y[random_indices]
+            A = np.hstack([x_data, y_data])
+            B = np.hstack([x_post, y_post])
+            
+            # TODO: standarized A, B
+            
+            mmd_value, p_value = mmd_test(A, B, n_shuffle=samples)
+
+
+def compute_quantile(samples: np.array, ):
     
+    n, n_samples = samples.shape
+    
+    quantile_values = np.linspace(0, 1, n+2)[1:-1]
+    assert len(quantile_values) == n
+    quantiled = np.quantile(samples, quantile_values)
+    
+    qq = np.zeros((n, n_samples))
+    qq_d_max = np.zeros((n_samples, ))
+    qq_d_min = np.zeros((n_samples, ))
+    
+    for i in range(n_samples):
+        a = np.sort(samples[:, i])
+        qq[:, i] = a
+        difference = a - quantiled
+        qq_d_max[i] = np.max(difference)
+        qq_d_min[i] = np.min(difference)
+        
+    mean = np.mean(qq, axis=1)
+    high = np.quantile(qq, 0.95, axis=1)
+    low = np.quantile(qq, 0.05, axis=1)
+    
+    return quantiled, qq_d_max, qq_d_min, mean, high, low
+
+def make_qqplot(data_mean, prior_L, post_L, samples=1000):
+
+    n = data_mean.shape[0]
+    prior_samples = np.matmul(prior_L.transpose(), np.random.randn(n, samples))
+    prior_quantiled, prior_qq_d_max, prior_qq_d_min, prior_mean, prior_high, prior_low = compute_quantile(prior_samples)
+    
+    post_samples = data_mean + np.matmul(post_L.transpose(), np.random.randn(n, samples)) # sample from 
+    post_quantiled, post_qq_d_max, post_qq_d_min, post_mean, post_high, post_low = compute_quantile(post_samples)
+    
+    qq_d_max = np.mean(prior_qq_d_max > post_qq_d_max + 1e-5 * np.max(post_qq_d_max) * np.random.randn(*post_qq_d_max.shape))
+    qq_d_min = np.mean(prior_qq_d_min < post_qq_d_min + 1e-5 * np.max(post_qq_d_min) * np.random.randn(*post_qq_d_min.shape))
+    
+    plt.figure()
+    plt.scatter(prior_quantiled, post_quantiled)
+    plt.fill_between(prior_quantiled, prior_high, prior_low, color='blue', alpha=0.4)
+    plt.plot(prior_quantiled, prior_mean)
+    plt.plot(prior_quantiled, post_mean)
+    plt.plot(prior_quantiled, post_high)
+    plt.plot(prior_quantiled, post_low)
+    plt.savefig("dummy.png")
+    
+    return qq_d_max, qq_d_min
+
+def make_acf_plot():
+    pass
+
+def make_peridogram():
+    pass
+
+def distmat(x):
+    return cdist(x, x)
+
+def sigma_estimation(x, y):
+    
+    D = distmat(np.vstack([x, y]))
+    tri_indices = np.tril_indices(D.shape[0], -1)
+    tri = D[tri_indices]
+    med = np.median(tri)
+    
+    if med <= 0:
+        med = np.mean(tri)
+        
+    if med < 1e-12:
+        med = 1e-2
+    
+    return med
+    
+def permutation_test(matrix, n1, n2, n_shuffle=1000):
+    
+    a00 = 1./ (n1*(n1-1))
+    a11 = 1./ (n2 *(n2-1))
+    a01 = -1./ (n1 * n2)
+    
+    n = n1 + n2
+    
+    pi = np.zeros(n, dtype=np.int8)
+    pi[n1:] = 1
+    
+    larger = 0.
+    for sample_n in range(1 + n_shuffle):
+        count = 0.
+        for i in range(n):
+            for j in range(i, n):
+                mij = matrix[i,j] + matrix[j,i]
+                if pi[i] == pi[j] == 0:
+                    count += a00 * mij
+                elif pi[i] == pi[j] == 1:
+                    count += a11 * mij
+                else:
+                    count += a01 * mij
+        
+        if sample_n == 0:
+            statistic = count
+        elif statistic <= count:
+            larger+= 1
+        
+        np.random.shuffle(pi)
+        
+    return larger / n_shuffle
+
+def mmd_test(x, y, sigma=None, n_shuffle=1000):
+    
+    m = x.shape[0]
+    H = np.eye(m) - (1./m) * np.ones((m,m))
+    
+    Dxx = distmat(x)
+    Dyy = distmat(y)
+    
+    if sigma:
+        Kx = np.exp(-Dxx/ (2.*sigma**2))
+        Ky = np.exp(-Dyy / (2.*sigma**2))
+        sxy = sigma
+    else:
+        sx = sigma_estimation(x,x)
+        sy = sigma_estimation(y,y)
+        sxy = sigma_estimation(x, y)
+        Kx = np.exp(-Dxx / (2.*sx *sx))
+        Ky = np.exp(-Dyy/ (2.*sy * sy))
+    
+    distance = distmat(np.vstack([x, y]))
+    kernel = np.exp(-distance / (sxy * sxy))
+    Kxy = kernel[:m, m:]
+    
+    mmdval = np.mean(Kx) + np.mean(Ky) - 2 * np.mean(Kxy)
+    
+    p_value = permutation_test(kernel, n1=x.shape[0], n2=y.shape[0], n_shuffle=n_shuffle)
+    return mmdval, p_value
+
 if __name__ == '__main__':
 
-    from kernel_discovery.kernel import RBF
+    from kernel_discovery.kernel import RBF, White
     from kernel_discovery.description.transform import kernel_to_ast
 
     def test_plot_gp():
@@ -689,44 +672,6 @@ if __name__ == '__main__':
                 mean.squeeze(), var.squeeze())
 
         plt.savefig('dummy_2.png')
-
-    def test_component_and_stat():
-
-        x = np.linspace(0, 5, 100)[:, None]
-        y = np.sin(x)
-
-        kernel = RBF() + RBF(lengthscales=0.5)
-        kernel = kernel_to_ast(kernel)
-
-        result = component_stats(
-            x, y, kernel=kernel, noise=np.array(0.1), order=[1, 0])
-
-        print(result)
-        plt.savefig('dummy_3.png')
-
-    def test_cummulative_plot():
-        x = np.linspace(0, 5, 100)[:, None]
-        y = np.sin(x)
-
-        kernel = RBF() + RBF(lengthscales=0.5)
-        kernel = kernel_to_ast(kernel)
-
-        result = cummulative_plots(
-            x, y, kernel=kernel, noise=np.array(0.1), order=[1, 0])
-        print(result)
-
-    def test_order_mae():
-
-        x = np.linspace(0, 5, 100)[:, None]
-        y = np.sin(x)
-
-        kernel = RBF() + RBF(lengthscales=0.5)
-        kernel = kernel_to_ast(kernel)
-
-        idx, mae_data = order_by_mae_reduction(
-            x, y, kernel=kernel, noise=np.array(0.1))
-        print(idx)
-        print(mae_data)
         
     def test_result_object():
         x = np.linspace(0, 5, 100)[:, None]
@@ -736,6 +681,30 @@ if __name__ == '__main__':
         kernel = kernel_to_ast(kernel)
         result = Result(x, y, kernel, noise=np.array(0.1), root="./figure")
         result.process()
+        
+        for component in result.components:
+            print(component)
+            
+    def test_mmd():
+        x = np.random.randn(100,2)
+        y = np.random.randn(200,2)
+        value = mmd_test(x, y)
+        print(value)
+        
+    def test_compute_quantile():
+        samples = np.random.randn(2, 1000)
+        result = compute_quantile(samples)
+        print(result)
+        
+    def test_make_qq_plot():
+        data_mean = np.random.randn(100,1)
+        x = np.linspace(0,10, 100)[:, None]
+        kernel = RBF() + RBF(lengthscales=0.5) + White(variance=0.1)
+        K = kernel.K(x)
+        L_post = tf.linalg.cholesky(K).numpy()
+        kernel = RBF() + White(variance=0.1)
+        L_prior = tf.linalg.cholesky(kernel.K(x)).numpy()
+        make_qqplot(data_mean, L_prior, L_post)
 
     # test_plot_gp()
     # test_sample_plot_gp()
@@ -743,4 +712,8 @@ if __name__ == '__main__':
     # test_component_and_stat()
     # test_cummulative_plot()
     # test_order_mae()
-    test_result_object()
+    # test_result_object()
+    
+    # test_mmd()
+    # test_compute_quantile()
+    test_make_qq_plot()

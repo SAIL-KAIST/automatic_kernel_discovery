@@ -618,18 +618,22 @@ class AdditiveDesc():
         self.k
 
 
-def produce_summary(dataset_name, n_components, fit_data, short_descriptions):
+def produce_summary(dataset_name, result):
 
     env = jinja2.Environment(
         loader=jinja2.FileSystemLoader(os.path.abspath('/')))
     template = env.get_template(os.path.realpath(
         "kernel_discovery/description/template.html"))
 
+    components = result.components
+    
     output = template.render(dataset=dataset_name,
-                             n_components=n_components,
-                             short_descriptions=short_descriptions)
+                             n_components=len(components),
+                             components=components,
+                             mav_data=result.mav_data) # better to make a dictionary
 
-    print(output)
+    with open("output.html", "w") as f:
+        f.write(output)
 
 
 if __name__ == "__main__":
