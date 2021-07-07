@@ -1,8 +1,12 @@
 """
 Python implemetation of https://github.com/jamesrobertlloyd/gpss-research/blob/master/source/matlab/component_stats_and_plots.m
 """
+
+import os
+
 from numpy import random
 from numpy.core.fromnumeric import var
+from numpy.lib.function_base import quantile
 from kernel_discovery.description.describe import ProductDesc
 import logging
 from typing import Callable, List
@@ -16,6 +20,10 @@ from kernel_discovery.kernel import Sum, Kernel
 from sklearn.model_selection import KFold
 from scipy.spatial.distance import cdist
 
+from statsmodels.tsa.stattools import acf
+from scipy.signal import periodogram
+
+import uuid
 
 
 import matplotlib.pyplot as plt
@@ -25,6 +33,10 @@ num_interp_points = 2000
 left_extend = 0.
 right_extend = 0.1
 env_thresh = 0.99
+
+GP_FIG_SIZE = (6,4)
+FIGURE_EXT = "png" # figure extension
+SAVEFIG_KWARGS = dict(dpi=250)
 
 
 def plot_gp(x: np.array, y: np.array, x_extrap: np.array, mean, var, data_only=False, has_data=True):
@@ -47,33 +59,37 @@ def plot_gp(x: np.array, y: np.array, x_extrap: np.array, mean, var, data_only=F
     y = y.squeeze()
     x_extrap = x_extrap.squeeze()
 
-    plt.figure()
+    fig, ax = plt.subplots(figsize=GP_FIG_SIZE)
     if not data_only:
-        plt.fill_between(x_extrap,
+        ax.fill_between(x_extrap,
                          mean + 2 * np.sqrt(var),
                          mean - 2 * np.sqrt(var),
                          color=color, alpha=alpha)
 
     if has_data:
-        plt.plot(x, y, 'k.')
+        ax.plot(x, y, 'k.')
 
     if not data_only:
-        plt.plot(x_extrap, mean, color=color, lw=lw)
+        ax.plot(x_extrap, mean, color=color, lw=lw)
+        
+    return fig, ax
 
 
 def sample_plot_gp(x, x_range, mean, covar):
 
     lw = 1.2
     jitter = 1e-6
-    num_samples = 4
+    num_samples = 3
     n = x_range.shape[0]
     L = np.linalg.cholesky(covar + jitter * np.eye(n))
 
     samples = [mean + L @ np.random.randn(n) for _ in range(num_samples)]
 
-    plt.figure()
+    fig, ax = plt.subplots(figsize=GP_FIG_SIZE)
     for sample in samples:
-        plt.plot(x_range, sample, lw=lw)
+        ax.plot(x_range, sample, lw=lw)
+    
+    return fig, ax
 
 
 def gaussian_conditional(Kmn, Lmm, Knn, f, full_cov=False):
@@ -157,6 +173,14 @@ def get_gradient(x, data_mean: np.array, envelop_diag: np.array):
     
 class Component():
     
+    _FIT = "fit_{i}.{ext}" # string format with order and extension
+    _EXTRAP = "extrap_{i}.{ext}"
+    _SAMPLE = "sample_{i}.{ext}"
+    _CUM_FIT = "cum_fit_{i}.{ext}"
+    _CUM_EXTRAP = "cum_extrap_{i}.{ext}"
+    _CUM_SAMPLE = "cum_sample_{i}.{ext}"
+    _ANTI_RES = "anti_res_{i}.{ext}"
+    
     def __init__(self, kernel) -> None:
         
         self.kernel = kernel
@@ -174,6 +198,19 @@ class Component():
         
         self.mae = None
         self.mae_reduction = None
+        
+        
+    def listing_figures(self, i, ext):
+        """Generate all figure names"""
+        self.i = i
+        self.fit = self._FIT.format(i=i, ext=ext)
+        self.extrap = self._EXTRAP.format(i=i, ext=ext)
+        self.sample =  self._SAMPLE.format(i=i, ext=ext)
+        self.cum_fit = self._CUM_FIT.format(i=i, ext=ext)
+        self.cum_extrap = self._CUM_EXTRAP.format(i=i, ext=ext)
+        self.cum_sample = self._CUM_SAMPLE.format(i=i, ext=ext)
+        self.anti_res = self._ANTI_RES.format(i=i, ext=ext)
+    
         
     def make_description(self):
         prod = kernel_to_ast(self.kernel)
@@ -216,7 +253,12 @@ class Result():
         
         self.logger = logging.getLogger(__class__.__name__)
         
-        # TODO: generate unique id to save to root directory
+        # create unique directory under the working directory
+        # TODO: it'd be better if this info is passed to this object
+        self.uuid = str(uuid.uuid1())
+        self.save_dir = os.path.join(self.root, self.uuid)
+        os.makedirs(self.save_dir)
+        self.logger.info(f"Create a directory [{self.save_dir}]")
         
         # some general stats for sum kernel
         self.mav_data = np.mean(np.abs(y))
@@ -323,12 +365,16 @@ class Result():
                                                        noise=self.noise)
 
         # plot raw data
-        plot_gp(self.x, self.y, self.x_range, complete_mean, complete_var, data_only=True)
-        self.logger.info("Plot raw data")
+        fig, _ = plot_gp(self.x, self.y, self.x_range, complete_mean, complete_var, data_only=True)
+        file_name = os.path.join(self.save_dir, "raw.png")
+        fig.savefig(file_name)
+        self.logger.info(f"Plot raw data and save at [{file_name}]")
 
         # plot full posterior
-        plot_gp(self.x, self.y, self.x_range, complete_mean, complete_var, data_only=True)
-        self.logger.info("Plot full posterior")
+        fig, _= plot_gp(self.x, self.y, self.x_range, complete_mean, complete_var)
+        file_name = os.path.join(self.save_dir, "fit.png")
+        fig.savefig(file_name)
+        self.logger.info(f"Plot full posterior and save at [{file_name}]")
 
         # plot sample from full posterior
         complete_mean, complete_covar = compute_mean_var(self.x, 
@@ -338,10 +384,16 @@ class Result():
                                                          component=self.complete_kernel,
                                                          noise=self.noise, 
                                                          full_cov=True)
-        sample_plot_gp(self.x, self.x_range, complete_mean, complete_covar)
-        self.logger.info("Plot sample")
+        fig, _ = sample_plot_gp(self.x, self.x_range, complete_mean, complete_covar)
+        file_name = os.path.join(self.save_dir, "sample.png")
+        fig.savefig(file_name)
+        self.logger.info(f"Plot sample and save at [{file_name}]")
 
         for i, component  in enumerate(self.components):
+            
+            # allocate figure name
+            component.listing_figures(i, ext=FIGURE_EXT)
+            
             comp = component.kernel
             envelop_comp = component.envelop
             mean, var = compute_mean_var(self.x,
@@ -369,8 +421,10 @@ class Result():
                                                 kernel=self.complete_kernel, 
                                                 component=excluded_kernel,
                                                 noise=self.noise)
-                plot_gp(self.x, removed_mean, self.xrange_no_extrap, mean, var)
-                self.logger.info(f"Plot posterior of component {i+1}/{len(self.components)}")
+                fig, _ = plot_gp(self.x, removed_mean, self.xrange_no_extrap, mean, var)
+                file_name = os.path.join(self.save_dir, component.fit)
+                fig.savefig(file_name)
+                self.logger.info(f"Plot posterior of component {i+1}/{len(self.components)}. Figure was saved at [{file_name}]")
 
                 mean, covar = compute_mean_var(self.x, 
                                            self.x_range,
@@ -379,14 +433,20 @@ class Result():
                                            component=comp, 
                                            noise=self.noise,
                                            full_cov=True)
-                plot_gp(self.x, removed_mean, self.x_range, mean, np.diag(covar))
+                fig, _ = plot_gp(self.x, removed_mean, self.x_range, mean, np.diag(covar))
+                file_name = os.path.join(self.save_dir, component.extrap)
+                fig.savefig(file_name)
                 self.logger.info(
-                    f"Plot posterior of component {i+1}/{len(self.components)} with extrapolation")
+                    f"Plot posterior of component {i+1}/{len(self.components)} with extrapolation. Figure was saved at [{file_name}]")
 
-                sample_plot_gp(self.x, self.x_range, mean, covar)
-                self.logger.info(f"Plot sample for compon`ent {i+1}/{len(self.components)}")            
+                fig, _ = sample_plot_gp(self.x, self.x_range, mean, covar)
+                file_name = os.path.join(self.save_dir, component.sample)
+                fig.savefig(file_name)
+                self.logger.info(f"Plot sample for component {i+1}/{len(self.components)}. Figure was saved at [{file_name}]")            
 
     def cummulative_stats_and_plots(self):
+        
+        
         
         self.logger.info("Compute cummulative statistics and cummulative plots")
         
@@ -404,8 +464,10 @@ class Result():
                                          kernel=self.complete_kernel, 
                                          component=current_kernel, 
                                          noise=self.noise)
-            plot_gp(self.x, self.y, self.xrange_no_extrap, mean, var)
-            self.logger.info(f"Plot sum of components up to component {i+1}/{self.n_components}")
+            fig, _ = plot_gp(self.x, self.y, self.xrange_no_extrap, mean, var)
+            file_name = os.path.join(self.save_dir, component.cum_fit)
+            fig.savefig(file_name)
+            self.logger.info(f"Plot sum of components up to component {i+1}/{self.n_components}. Figure was saved at [{file_name}]")
 
             # plot with extrapolation
             mean, covar = compute_mean_var(self.x, 
@@ -415,12 +477,17 @@ class Result():
                                            component=current_kernel, 
                                            noise=self.noise, 
                                            full_cov=True)
-            plot_gp(self.x, self.y, self.x_range, mean, np.diag(covar))
-            self.logger.info(f"Plot sum of components up to component {i+1}/{self.n_components} with extrapolation")
+            fig, _ = plot_gp(self.x, self.y, self.x_range, mean, np.diag(covar))
+            file_name = os.path.join(self.save_dir, component.cum_extrap)
+            fig.savefig(file_name)
+            self.logger.info(f"Plot sum of components up to component {i+1}/{self.n_components} with extrapolation. Figure was saved at [{file_name}]")
+            
 
             # plot random sample with extrapolation
-            sample_plot_gp(self.x, self.x_range, mean, covar)
-            self.logger.info(f"Plot sample for sum of components up to component {i+1}/{self.n_components} with extrapolation")
+            fig, _ = sample_plot_gp(self.x, self.x_range, mean, covar)
+            file_name = os.path.join(self.save_dir, component.cum_sample)
+            fig.savefig(file_name)
+            self.logger.info(f"Plot sample for sum of components up to component {i+1}/{self.n_components} with extrapolation. Figure was save at [{file_name}]")
 
             d_mean, d_var = compute_mean_var(self.x, 
                                              self.x, 
@@ -447,8 +514,10 @@ class Result():
                                              kernel=self.complete_kernel, 
                                              component=sum_anti_kernel, 
                                              noise=self.noise)
-                plot_gp(self.x, residual, self.xrange_no_extrap, mean, var)
-                self.logger.info(f"Plot residual after component {i+1}/{self.n_components}")
+                fig, _ = plot_gp(self.x, residual, self.xrange_no_extrap, mean, var)
+                file_name = os.path.join(self.save_dir, component.anti_res)
+                fig.savefig(file_name)
+                self.logger.info(f"Plot residual after component {i+1}/{self.n_components}. Figure was saved at [{file_name}]")
 
     def checking_stats(self):
         
@@ -482,16 +551,16 @@ class Result():
                                                   Knn=decomp_sigma_post,
                                                   f=self.y)
             
-            y_post =(y_data_post - data_mean_post) # TODO: random sample
+            # y_post =(y_data_post - data_mean_post) # TODO: random sample
             
-            random_indices = np.random.permutation(self.x.shape[0])
-            x_data, y_data = self.x[random_indices], self.y[random_indices]
-            A = np.hstack([x_data, y_data])
-            B = np.hstack([x_post, y_post])
+            # random_indices = np.random.permutation(self.x.shape[0])
+            # x_data, y_data = self.x[random_indices], self.y[random_indices]
+            # A = np.hstack([x_data, y_data])
+            # B = np.hstack([x_post, y_post])
             
             # TODO: standarized A, B
             
-            mmd_value, p_value = mmd_test(A, B, n_shuffle=samples)
+            # mmd_value, p_value = mmd_test(A, B, n_shuffle=samples)
 
 
 def compute_quantile(samples: np.array, ):
@@ -542,10 +611,95 @@ def make_qqplot(data_mean, prior_L, post_L, samples=1000):
     
     return qq_d_max, qq_d_min
 
-def make_acf_plot():
-    pass
 
-def make_peridogram():
+def compute_acf(samples: np.array):
+    n, n_samples = samples.shape
+    acf_values = acf(samples[:, 0], n - 1)
+    acf_values = np.zeros((acf_values.size, n_samples))
+    acf_min_loc = np.zeros((n_samples,))
+    acf_min = np.zeros((n_samples,))
+    
+    for i in range(n_samples):
+        acf_values[:, i] = acf(samples[:,i], n-1)
+        acf_min_loc[i] = np.argmin(acf_values[:, i])
+        acf_min[i] = np.min(acf_values[:,i])
+    
+    return acf_values, acf_min_loc, acf_min
+
+def make_acf_plot(data_mean, prior_L, post_L, grid_distance, samples=1000):
+    
+    n = data_mean.shape[0]
+    prior_samples = np.matmul(prior_L.transpose(), np.random.randn(n, samples))
+    prior_acf, prior_acf_min_loc, prior_acf_min = compute_acf(prior_samples)
+    post_samples = np.matmul(post_L.transpose(), np.random.randn(n, samples))
+    post_acf, post_acf_min_loc, post_acf_min = compute_acf(post_samples)
+
+    acf_min = np.mean(prior_acf_min < post_acf_min + 1e-5 * np.max(post_acf_min) * np.random.randn(*post_acf_min.shape))
+    acf_min_loc = np.mean(prior_acf_min_loc < post_acf_min_loc + 1e-5 * np.max(post_acf_min_loc) * np.random.randn(*post_acf_min_loc.shape))
+
+    two_band_plot(x=np.arange(1, post_acf.shape[0]+1) * grid_distance,
+                  mean_1=np.mean(prior_acf, axis=1),
+                  high_1=np.quantile(prior_acf, 0.95, axis=1),
+                  low_1=np.quantile(prior_acf, 0.05, axis=1),
+                  mean_2=np.mean(post_acf, axis=1),
+                  high_2=np.quantile(post_acf, 0.95, axis=1),
+                  low_2=np.quantile(post_acf, 0.05, axis=1))
+    
+    return acf_min_loc, acf_min
+
+def compute_periodogram(samples: np.array):
+    
+    _, n_samples = samples.shape
+    
+    pxx = 10. * np.log10(periodogram(samples[:, 0])[0])
+    pxx = np.zeros((pxx.size, n_samples))
+    pxx_max_loc = np.zeros((n_samples, ))
+    pxx_max = np.zeros((n_samples,))
+    for i in range(n_samples):
+        pxx[:, i] = 10. * np.log10(periodogram(samples[:, i])[0]) 
+        pxx_max_loc[i] = np.argmax(pxx[:, i])
+        pxx_max[i] = np.max(pxx[:, i])
+    
+    return pxx, pxx_max_loc, pxx_max
+    
+def make_peridogram(data_mean, prior_L, post_L, samples=1000):
+    
+    n = data_mean.shape[0]
+    prior_samples = np.matmul(prior_L.transpose(), np.random.randn(n, samples))
+    prior_pxx, prior_pxx_max_loc, prior_pxx_max = compute_periodogram(prior_samples)
+    post_samples = np.matmul(post_L.transpose(), np.random.randn(n, samples))
+    post_pxx, post_pxx_max_loc, post_pxx_max = compute_periodogram(post_samples)
+
+    pxx_max = np.mean(prior_pxx_max > post_pxx_max + 1e-5 * np.max(post_pxx_max) * np.random.randn(*post_pxx_max.shape))
+    pxx_max_loc = np.mean(prior_pxx_max_loc > post_pxx_max_loc + 1e-5 * np.max(post_pxx_max_loc) * np.random.randn(*post_pxx_max_loc.shape))
+    
+    two_band_plot(x=np.linspace(0,1, prior_pxx.shape[0]),
+                  mean_1=np.mean(prior_pxx, axis=1),
+                  high_1=np.quantile(prior_pxx, 0.95, axis=1),
+                  low_1=np.quantile(prior_pxx, 0.05, axis=1),
+                  mean_2=np.mean(post_pxx, axis=1),
+                  high_2=np.quantile(post_pxx, 0.95, axis=1),
+                  low_2=np.quantile(post_pxx, 0.05, axis=1))
+    
+    return pxx_max_loc, pxx_max
+
+def two_band_plot(x, mean_1, high_1, low_1, mean_2, high_2, low_2):
+    
+    plt.figure()
+    
+    # first band
+    plt.plot(x, mean_1)
+    plt.fill_between(x, high_1, low_1, color='blue', alpha=0.4)
+    
+    # second band
+    plt.plot(x, mean_2)
+    plt.plot(x, high_2, "--")
+    plt.plot(x, low_2, "--")
+    
+    plt.savefig("dummy.png")
+    
+    
+    
     pass
 
 def distmat(x):
@@ -705,7 +859,39 @@ if __name__ == '__main__':
         kernel = RBF() + White(variance=0.1)
         L_prior = tf.linalg.cholesky(kernel.K(x)).numpy()
         make_qqplot(data_mean, L_prior, L_post)
+        
+    def test_compute_acf():
+        x = np.random.randn(10, 1000)
+        result = compute_acf(x)
+        print(result)
+        
+    def test_make_acf():
+        data_mean = np.random.randn(100,1)
+        x = np.linspace(0,10, 100)[:, None]
+        grid_distance = x[1] - x[0]
+        kernel = RBF() + RBF(lengthscales=0.5) + White(variance=0.1)
+        K = kernel.K(x)
+        L_post = tf.linalg.cholesky(K).numpy()
+        kernel = RBF() + White(variance=0.1)
+        L_prior = tf.linalg.cholesky(kernel.K(x)).numpy()
+        make_acf_plot(data_mean, L_prior, L_post, grid_distance)
+        
+        
+    def test_compute_periodogram():
+        x = np.random.randn(10, 1000)
+        result = compute_periodogram(x)
+        print(result) 
 
+    def test_make_periodogram():
+        data_mean = np.random.randn(100,1)
+        x = np.linspace(0,10, 100)[:, None]
+        kernel = RBF() + RBF(lengthscales=0.5) + White(variance=0.1)
+        K = kernel.K(x)
+        L_post = tf.linalg.cholesky(K).numpy()
+        kernel = RBF() + White(variance=0.1)
+        L_prior = tf.linalg.cholesky(kernel.K(x)).numpy()
+        make_peridogram(data_mean, L_prior, L_post)
+        
     # test_plot_gp()
     # test_sample_plot_gp()
     # test_compute_mean_var()
@@ -716,4 +902,11 @@ if __name__ == '__main__':
     
     # test_mmd()
     # test_compute_quantile()
-    test_make_qq_plot()
+    # test_make_qq_plot()
+    
+    # test_compute_acf()
+    test_make_acf()
+    
+    # test_compute_periodogram()
+    # test_make_periodogram()
+    

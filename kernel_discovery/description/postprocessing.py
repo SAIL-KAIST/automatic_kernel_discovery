@@ -31,8 +31,3 @@ if __name__ == '__main__':
     x = np.linspace(0,1,100)[:,None]
     y = np.sin(x)
     make_all_figures_and_report(x, y, prod, noise=np.array(0.1))
-    
-    
-        
-    
-    

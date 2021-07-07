@@ -16,7 +16,7 @@
 
   <p>
   <figure class="l-body-outset" id="fig:raw_and_fit">
-    <img src="dummy.png" alt="raw" style="width: 45%"> <img src="dummy.png" alt="fit" style="width: 45%">
+    <img src="raw.png" alt="raw" style="width: 45%"> <img src="fit.png" alt="fit" style="width: 45%">
     <figcaption>Raw data (left) and model posterior with extrapolation (right)</figcaption>
   </figure>
   </p>
@@ -51,14 +51,21 @@
       <td>-</td>
       <td>-</td>
       <td>-</td>
-      <td>MAV data</td> <!--MAV data-->
+      <td>{{"%2.1f"|format(mav_data|float)}}</td> 
       <td>-</td>
     </tr>
     {% for component in components %}
     <tr>
       <td> {{loop.index}} </td>
       <td> {{"%2.1f"|format(component.cum_var|float)}}</td>
-      <td> </td> <!--TODO: compute delta VAR-->
+      <td> 
+        <!--Delta R^2: a little more complicate-->
+        {% if loop.index == 1 %}
+          {{"%2.1f"|format(component.cum_var|float)}}
+        {% else %}
+          {{"%2.1f"|format(components[loop.index-1].cum_var - components[loop.index-2].cum_var|float)}}
+        {% endif %}
+      </td>
       <td> {{"%2.1f"|format(component.cum_res_var|float)}}</td>
       <td> {{"%2.1f"|format(component.mae|float)}}</td>
       <td> {{"%2.1f"|format(component.mae_reduction|float)}}</td>
@@ -126,30 +133,31 @@
   </p>
 
   <figure>
-    <img src="dummy.png" style="width: 45%"> 
-    <img src="dummy.png" style="width: 45%"> 
+    <img src={{component.fit}} style="width: 45%"> 
+    <img src={{component.cum_fit}} style="width: 45%"> 
     <figcaption>Pointwise posterior of component {{loop.index}} and the posterior of the cumulative sum of components with data (right)</figcaption>
   </figure>
   
-  <!--residual figure-->
-  <!--TODO last component do not have this plot-->
-  <figure>
-    <img src="dummy.png" style="width: 45%"> 
-    <figcaption>Pointwise posterior of residuals after adding component {{loop.index}}</figcaption>
-  </figure>
+  <!--residual figure: last component does not have this-->
+  {% if loop.index < components|length %}
+    <figure>
+      <img src={{component.anti_res}} style="width: 45%"> 
+      <figcaption>Pointwise posterior of residuals after adding component {{loop.index}}</figcaption>
+    </figure>
+  {% endif %}
   
   {% endfor%}
   
   <!--Extrapolation-->
   <h2 id="extrap">Extrapolations</h2>
   <p>
-    Summaries of the posterior distribution of the full model are shown in this <a href="#fig:extrap">figure</a><div class=""></div>
+    Summaries of the posterior distribution of the full model are shown in this <a href="#fig:extrap">figure</a>. 
     The plot on the left displays the mean of the posterior together with pointwise variance.
     The plot on the right displays three random samples from the posterior.
   </p>
   <figure id="fig:extrap">
-    <img src="dummy.png" style="width: 45%"> 
-    <img src="dummy.png" style="width: 45%"> 
+    <img src= "fit.png" style="width: 45%"> 
+    <img src= "sample.png" style="width: 45%"> 
     <figcaption>Full model posterior with extrapolation. Mean and pointwase variance (left) and three random samples
       (right)</figcaption>
     </figure>
@@ -164,8 +172,8 @@
     <p>{{component.extrap_desc}}</p>
     
     <figure>
-      <img src="dummy.png" style="width: 80%"> 
-      <img src="dummy.png" style="width: 80%"> 
+      <img src={{component.extrap}} style="width: 80%"> 
+      <img src={{component.cum_extrap}} style="width: 80%"> 
     <figcaption>
       Posterior of component {{loop.index}} (top) and cumulative sum of components (bottom) with extrapolation. 
       Mean and pointwise (left) and three samples from the posterior distribution (right).
