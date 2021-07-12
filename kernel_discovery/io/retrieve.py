@@ -22,13 +22,18 @@ def retrieve(ticker_name, start, end, select='Adj Close'):
     logger.info(
         f"Retrieve stock: {ticker_name} from [{start}] to [{end}] and select `{select}` column")
 
+    ticker = yf.Ticker(ticker_name)
+    
     data = yf.download(ticker_name, start=start, end=end)
     data.reset_index(level=0, inplace=True)
 
     x = data['Date'].apply(lambda x: convert_date(to_datetime(x))).to_numpy()
     y = data[select].to_numpy()
-
-    return x, y
+    
+    x = x.reshape((-1, 1))
+    y = y.reshape((-1, 1))
+    
+    return x, y, ticker
 
 
 if __name__ == "__main__":

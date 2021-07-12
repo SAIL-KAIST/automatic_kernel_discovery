@@ -1,5 +1,8 @@
 """
-Python implemetation of https://github.com/jamesrobertlloyd/gpss-research/blob/master/source/matlab/component_stats_and_plots.m
+Python implemetation of 
+    - https://github.com/jamesrobertlloyd/gpss-research/blob/master/source/matlab/order_by_mae_reduction.m
+    - https://github.com/jamesrobertlloyd/gpss-research/blob/master/source/matlab/checking_stats.m
+    - https://github.com/jamesrobertlloyd/gpss-research/blob/master/source/matlab/component_stats_and_plots.m
 """
 
 import os
@@ -23,10 +26,9 @@ from scipy.spatial.distance import cdist
 from statsmodels.tsa.stattools import acf
 from scipy.signal import periodogram
 
-import uuid
-
 
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 logger = logging.getLogger("plot.py")
 num_interp_points = 2000
@@ -34,9 +36,11 @@ left_extend = 0.
 right_extend = 0.1
 env_thresh = 0.99
 
-GP_FIG_SIZE = (6,4)
+COLOR_PALETTE = sns.color_palette()
+GP_FIG_SIZE = (6,3)
 FIGURE_EXT = "png" # figure extension
-SAVEFIG_KWARGS = dict(dpi=250)
+SAVEFIG_KWARGS = dict(dpi=300)
+
 
 
 def plot_gp(x: np.array, y: np.array, x_extrap: np.array, mean, var, data_only=False, has_data=True):
@@ -51,7 +55,7 @@ def plot_gp(x: np.array, y: np.array, x_extrap: np.array, mean, var, data_only=F
         has_data (bool, optional): Not include data. Defaults to True.
     """
 
-    color = 'blue'
+    light_blue = (220./255, 230./255, 1.)
     alpha = 0.6
     lw = 1.2
 
@@ -64,13 +68,25 @@ def plot_gp(x: np.array, y: np.array, x_extrap: np.array, mean, var, data_only=F
         ax.fill_between(x_extrap,
                          mean + 2 * np.sqrt(var),
                          mean - 2 * np.sqrt(var),
-                         color=color, alpha=alpha)
+                         color=light_blue, alpha=alpha)
 
     if has_data:
         ax.plot(x, y, 'k.')
 
     if not data_only:
-        ax.plot(x_extrap, mean, color=color, lw=lw)
+        ax.plot(x_extrap, mean, color=COLOR_PALETTE[0], lw=lw)
+        
+    # draw line if extrapolation
+    if (not np.all(mean==0)) and (not np.max(x) == np.max(x_extrap)):
+        ylim = ax.get_ylim()
+        ax.plot([np.max(x), np.max(x)], ylim, "--", color=(0.3, 0.3, 0.3))
+    if (not np.all(mean==0)) and (not np.min(x) == np.min(x_extrap)):
+        ylim = ax.get_ylim()
+        ax.plot([np.min(x), np.min(x)], ylim, "--", color=(0.3, 0.3, 0.3))
+    
+        
+    ax.set_xlim(np.min(x_extrap), np.max(x_extrap))
+        
         
     return fig, ax
 
@@ -83,12 +99,20 @@ def sample_plot_gp(x, x_range, mean, covar):
     n = x_range.shape[0]
     L = np.linalg.cholesky(covar + jitter * np.eye(n))
 
-    samples = [mean + L @ np.random.randn(n) for _ in range(num_samples)]
-
     fig, ax = plt.subplots(figsize=GP_FIG_SIZE)
-    for sample in samples:
-        ax.plot(x_range, sample, lw=lw)
+    for i in range(num_samples):
+        sample = mean + L @ np.random.randn(n)
+        ax.plot(x_range, sample, lw=lw, color=COLOR_PALETTE[i])
     
+    # draw line if extrapolation
+    if (not np.all(mean==0)) and (not np.max(x) == np.max(x_range)):
+        ylim = ax.get_ylim()
+        ax.plot([np.max(x), np.max(x)], ylim, "--", color=(0.3, 0.3, 0.3))
+    if (not np.all(mean==0)) and (not np.min(x) == np.min(x_range)):
+        ylim = ax.get_ylim()
+        ax.plot([np.min(x), np.min(x)], ylim, "--", color=(0.3, 0.3, 0.3))
+    
+    ax.set_xlim(np.min(x_range), np.max(x_range))
     return fig, ax
 
 
@@ -230,8 +254,7 @@ class Component():
 
 class Result():
     
-    def __init__(self, x: np.array, y: np.array, kernel: Node, noise:np.array, root) -> None:
-        self.root = root
+    def __init__(self, x: np.array, y: np.array, kernel: Node, noise:np.array, save_dir) -> None:
         self.x = x
         self.y = y
         
@@ -253,12 +276,8 @@ class Result():
         
         self.logger = logging.getLogger(__class__.__name__)
         
-        # create unique directory under the working directory
-        # TODO: it'd be better if this info is passed to this object
-        self.uuid = str(uuid.uuid1())
-        self.save_dir = os.path.join(self.root, self.uuid)
-        os.makedirs(self.save_dir)
-        self.logger.info(f"Create a directory [{self.save_dir}]")
+        # working directory
+        self.save_dir = save_dir
         
         # some general stats for sum kernel
         self.mav_data = np.mean(np.abs(y))
@@ -367,13 +386,13 @@ class Result():
         # plot raw data
         fig, _ = plot_gp(self.x, self.y, self.x_range, complete_mean, complete_var, data_only=True)
         file_name = os.path.join(self.save_dir, "raw.png")
-        fig.savefig(file_name)
+        fig.savefig(file_name, **SAVEFIG_KWARGS)
         self.logger.info(f"Plot raw data and save at [{file_name}]")
 
         # plot full posterior
         fig, _= plot_gp(self.x, self.y, self.x_range, complete_mean, complete_var)
         file_name = os.path.join(self.save_dir, "fit.png")
-        fig.savefig(file_name)
+        fig.savefig(file_name, **SAVEFIG_KWARGS)
         self.logger.info(f"Plot full posterior and save at [{file_name}]")
 
         # plot sample from full posterior
@@ -386,7 +405,7 @@ class Result():
                                                          full_cov=True)
         fig, _ = sample_plot_gp(self.x, self.x_range, complete_mean, complete_covar)
         file_name = os.path.join(self.save_dir, "sample.png")
-        fig.savefig(file_name)
+        fig.savefig(file_name, **SAVEFIG_KWARGS)
         self.logger.info(f"Plot sample and save at [{file_name}]")
 
         for i, component  in enumerate(self.components):
@@ -423,7 +442,7 @@ class Result():
                                                 noise=self.noise)
                 fig, _ = plot_gp(self.x, removed_mean, self.xrange_no_extrap, mean, var)
                 file_name = os.path.join(self.save_dir, component.fit)
-                fig.savefig(file_name)
+                fig.savefig(file_name, **SAVEFIG_KWARGS)
                 self.logger.info(f"Plot posterior of component {i+1}/{len(self.components)}. Figure was saved at [{file_name}]")
 
                 mean, covar = compute_mean_var(self.x, 
@@ -435,13 +454,13 @@ class Result():
                                            full_cov=True)
                 fig, _ = plot_gp(self.x, removed_mean, self.x_range, mean, np.diag(covar))
                 file_name = os.path.join(self.save_dir, component.extrap)
-                fig.savefig(file_name)
+                fig.savefig(file_name, **SAVEFIG_KWARGS)
                 self.logger.info(
                     f"Plot posterior of component {i+1}/{len(self.components)} with extrapolation. Figure was saved at [{file_name}]")
 
                 fig, _ = sample_plot_gp(self.x, self.x_range, mean, covar)
                 file_name = os.path.join(self.save_dir, component.sample)
-                fig.savefig(file_name)
+                fig.savefig(file_name, **SAVEFIG_KWARGS)
                 self.logger.info(f"Plot sample for component {i+1}/{len(self.components)}. Figure was saved at [{file_name}]")            
 
     def cummulative_stats_and_plots(self):
@@ -466,7 +485,7 @@ class Result():
                                          noise=self.noise)
             fig, _ = plot_gp(self.x, self.y, self.xrange_no_extrap, mean, var)
             file_name = os.path.join(self.save_dir, component.cum_fit)
-            fig.savefig(file_name)
+            fig.savefig(file_name, **SAVEFIG_KWARGS)
             self.logger.info(f"Plot sum of components up to component {i+1}/{self.n_components}. Figure was saved at [{file_name}]")
 
             # plot with extrapolation
@@ -479,7 +498,7 @@ class Result():
                                            full_cov=True)
             fig, _ = plot_gp(self.x, self.y, self.x_range, mean, np.diag(covar))
             file_name = os.path.join(self.save_dir, component.cum_extrap)
-            fig.savefig(file_name)
+            fig.savefig(file_name, **SAVEFIG_KWARGS)
             self.logger.info(f"Plot sum of components up to component {i+1}/{self.n_components} with extrapolation. Figure was saved at [{file_name}]")
             
 
@@ -516,7 +535,7 @@ class Result():
                                              noise=self.noise)
                 fig, _ = plot_gp(self.x, residual, self.xrange_no_extrap, mean, var)
                 file_name = os.path.join(self.save_dir, component.anti_res)
-                fig.savefig(file_name)
+                fig.savefig(file_name, **SAVEFIG_KWARGS)
                 self.logger.info(f"Plot residual after component {i+1}/{self.n_components}. Figure was saved at [{file_name}]")
 
     def checking_stats(self):
@@ -600,16 +619,10 @@ def make_qqplot(data_mean, prior_L, post_L, samples=1000):
     qq_d_max = np.mean(prior_qq_d_max > post_qq_d_max + 1e-5 * np.max(post_qq_d_max) * np.random.randn(*post_qq_d_max.shape))
     qq_d_min = np.mean(prior_qq_d_min < post_qq_d_min + 1e-5 * np.max(post_qq_d_min) * np.random.randn(*post_qq_d_min.shape))
     
-    plt.figure()
-    plt.scatter(prior_quantiled, post_quantiled)
-    plt.fill_between(prior_quantiled, prior_high, prior_low, color='blue', alpha=0.4)
-    plt.plot(prior_quantiled, prior_mean)
-    plt.plot(prior_quantiled, post_mean)
-    plt.plot(prior_quantiled, post_high)
-    plt.plot(prior_quantiled, post_low)
-    plt.savefig("dummy.png")
+    fig, ax = two_band_plot(prior_quantiled, prior_mean, prior_high, prior_low, post_mean, post_high, post_low)
+    ax.scatter(prior_quantiled, post_quantiled, color='k')
     
-    return qq_d_max, qq_d_min
+    return fig, ax, qq_d_max, qq_d_min
 
 
 def compute_acf(samples: np.array):
@@ -637,7 +650,7 @@ def make_acf_plot(data_mean, prior_L, post_L, grid_distance, samples=1000):
     acf_min = np.mean(prior_acf_min < post_acf_min + 1e-5 * np.max(post_acf_min) * np.random.randn(*post_acf_min.shape))
     acf_min_loc = np.mean(prior_acf_min_loc < post_acf_min_loc + 1e-5 * np.max(post_acf_min_loc) * np.random.randn(*post_acf_min_loc.shape))
 
-    two_band_plot(x=np.arange(1, post_acf.shape[0]+1) * grid_distance,
+    fig, ax = two_band_plot(x=np.arange(1, post_acf.shape[0]+1) * grid_distance,
                   mean_1=np.mean(prior_acf, axis=1),
                   high_1=np.quantile(prior_acf, 0.95, axis=1),
                   low_1=np.quantile(prior_acf, 0.05, axis=1),
@@ -645,7 +658,7 @@ def make_acf_plot(data_mean, prior_L, post_L, grid_distance, samples=1000):
                   high_2=np.quantile(post_acf, 0.95, axis=1),
                   low_2=np.quantile(post_acf, 0.05, axis=1))
     
-    return acf_min_loc, acf_min
+    return fig, ax, acf_min_loc, acf_min
 
 def compute_periodogram(samples: np.array):
     
@@ -673,7 +686,7 @@ def make_peridogram(data_mean, prior_L, post_L, samples=1000):
     pxx_max = np.mean(prior_pxx_max > post_pxx_max + 1e-5 * np.max(post_pxx_max) * np.random.randn(*post_pxx_max.shape))
     pxx_max_loc = np.mean(prior_pxx_max_loc > post_pxx_max_loc + 1e-5 * np.max(post_pxx_max_loc) * np.random.randn(*post_pxx_max_loc.shape))
     
-    two_band_plot(x=np.linspace(0,1, prior_pxx.shape[0]),
+    fig, ax = two_band_plot(x=np.linspace(0,1, prior_pxx.shape[0]),
                   mean_1=np.mean(prior_pxx, axis=1),
                   high_1=np.quantile(prior_pxx, 0.95, axis=1),
                   low_1=np.quantile(prior_pxx, 0.05, axis=1),
@@ -681,26 +694,24 @@ def make_peridogram(data_mean, prior_L, post_L, samples=1000):
                   high_2=np.quantile(post_pxx, 0.95, axis=1),
                   low_2=np.quantile(post_pxx, 0.05, axis=1))
     
-    return pxx_max_loc, pxx_max
+    return fig, ax, pxx_max_loc, pxx_max
 
 def two_band_plot(x, mean_1, high_1, low_1, mean_2, high_2, low_2):
     
-    plt.figure()
+    light_blue = (227./255, 237./255, 1.)
     
+    fig, ax = plt.subplots(figsize=GP_FIG_SIZE)
     # first band
-    plt.plot(x, mean_1)
-    plt.fill_between(x, high_1, low_1, color='blue', alpha=0.4)
+    ax.plot(x, mean_1, color=COLOR_PALETTE[0])
+    ax.fill_between(x, high_1, low_1, color=light_blue, alpha=0.6)
     
     # second band
-    plt.plot(x, mean_2)
-    plt.plot(x, high_2, "--")
-    plt.plot(x, low_2, "--")
+    ax.plot(x, mean_2, color=COLOR_PALETTE[1])
+    ax.plot(x, high_2, "--", color=COLOR_PALETTE[1])
+    ax.plot(x, low_2, "--", color=COLOR_PALETTE[1])
+        
+    return fig, ax
     
-    plt.savefig("dummy.png")
-    
-    
-    
-    pass
 
 def distmat(x):
     return cdist(x, x)
@@ -790,13 +801,13 @@ if __name__ == '__main__':
 
         x = np.linspace(0, 5, 100)
         y = np.sin(x) + 0.01 * np.random.randn(100)
-        x_extrap = np.linspace(0, 5.5, 200)
+        x_extrap = np.linspace(-0.5, 5.5, 200)
         mean = np.sin(x_extrap)
         var = np.ones(200)*0.1
 
-        plot_gp(x, y, x_extrap, mean, var)
+        fig, ax = plot_gp(x, y, x_extrap, mean, var)
 
-        plt.savefig("dummy.png")
+        fig.savefig("dummy.png", **SAVEFIG_KWARGS)
 
     def test_sample_plot_gp():
 
@@ -806,9 +817,9 @@ if __name__ == '__main__':
         mean = np.sin(x_extrap)
         var = np.eye(200)*0.1
 
-        sample_plot_gp(x, x_extrap, mean, var)
+        fig, _ = sample_plot_gp(x, x_extrap, mean, var)
 
-        plt.savefig("dummy.png")
+        fig.savefig("dummy.png", **SAVEFIG_KWARGS)
 
     def test_compute_mean_var():
 
@@ -902,10 +913,10 @@ if __name__ == '__main__':
     
     # test_mmd()
     # test_compute_quantile()
-    # test_make_qq_plot()
+    test_make_qq_plot()
     
     # test_compute_acf()
-    test_make_acf()
+    # test_make_acf()
     
     # test_compute_periodogram()
     # test_make_periodogram()

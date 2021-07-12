@@ -618,8 +618,8 @@ class AdditiveDesc():
         self.k
 
 
-def produce_summary(dataset_name, result):
-
+def produce_summary(dataset_name, result, save_dir):
+    """Generate summary based on a template. However, this is deprecated, no longer used. This is done in front-end"""
     env = jinja2.Environment(
         loader=jinja2.FileSystemLoader(os.path.abspath('/')))
     template = env.get_template(os.path.realpath(
@@ -632,7 +632,7 @@ def produce_summary(dataset_name, result):
                              components=components,
                              mav_data=result.mav_data) # better to make a dictionary
 
-    with open("output.html", "w") as f:
+    with open(os.path.join(save_dir, "output.html"), "w") as f:
         f.write(output)
 
 
