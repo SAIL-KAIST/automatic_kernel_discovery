@@ -21,7 +21,7 @@ poly_names = ['linear', 'quadratic', 'cubic', 'quartic', 'quintic']
 _NOUN_PHRASES = {
     "periodic": "Periodic function",
     "white": "Uncorrelated noise",
-    "squared_exponential": "Smooth function",
+    "squaredexponential": "Smooth function",
     "constant": "Constant",
     "linear": "Linear function",
     'polynomial': "A polynomial function (of degree `{degree}`)"
@@ -40,7 +40,7 @@ _EXTRAP_PHRASES = {
 _NOUN_PRECEDENCE = {
     'periodic': 0,
     'white': 1,
-    'squared_exponential': 2,
+    'squaredexponential': 2,
     'constant': 3,
     'linear': 4,
     'polynomial': 5

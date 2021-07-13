@@ -46,6 +46,7 @@ class BaseEvaluator(object):
 
         datashape_x, datashape_y = get_datashape(x), get_datashape(y)
 
+        # initialize hyperparameter function w.r.t. each kernel type
         def init_func(kernel_type):
             return init_kernel(kernel_type, datashape_x, datashape_y, sd=1.)
 
@@ -56,7 +57,7 @@ class BaseEvaluator(object):
         optimizer = Scipy()
         try:
             opt_logs = optimizer.minimize(
-                model.training_loss, model.trainable_variables, options=dict(maxiter=100))
+                model.training_loss, model.trainable_variables, options=dict(maxiter=500))
         except:
             self.logger.error(
                 f"Error occured when optimized: \n {pretty_ast(ast)}")
@@ -74,9 +75,9 @@ class LocalEvaluator(BaseEvaluator):
     def evaluate(self, x, y, asts: List[Node]):
 
         for i, ast in enumerate(asts):
-            optimized_model, score = self.evaluate_single(x, y, ast)
+            optimized_ast, noise, score = self.evaluate_single(x, y, ast)
             # TODO: return model parameters not optimized_model
-            yield ast, optimized_model, score
+            yield optimized_ast, noise, score
             self.logger.info(
                 f"{i + 1}/{len(asts)}  Score: {score:.3f} for \n {pretty_ast(ast)}")
 

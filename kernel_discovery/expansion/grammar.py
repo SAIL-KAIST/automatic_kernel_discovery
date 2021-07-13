@@ -1,5 +1,9 @@
 
+from copy import deepcopy
+from operator import le
+from re import sub
 from typing import Optional, List
+import itertools
 from gpflow.kernels import Kernel
 
 from kernel_discovery.kernel import Sum, Product
@@ -12,6 +16,21 @@ _IMPLEMENTED_BASE_KERNEL_NAMES = [BASE_KERNELS[name]
                                   for name in IMPLEMENTED_BASE_KERNEL_NAMES]
 
 
+def _expand_single(kernel):
+    
+    kernel_candidates = []
+    
+    for base_kernel in _IMPLEMENTED_BASE_KERNEL_NAMES:
+    
+        kernel_candidates.extend([
+            kernel + base_kernel(),
+            kernel * base_kernel(),
+            kernel * (base_kernel() + BASE_KERNELS['constant']())
+        ])
+    
+    return kernel_candidates
+    
+
 def expand_kernel(kernel: Kernel, grammar_kwargs=None) -> List[Kernel]:
 
     kernel_candidates: List[Kernel] = [kernel]
@@ -19,14 +38,10 @@ def expand_kernel(kernel: Kernel, grammar_kwargs=None) -> List[Kernel]:
     kernel_candidates.extend(base_kernel()
                              for base_kernel in _IMPLEMENTED_BASE_KERNEL_NAMES)
 
-    for base_kernel in _IMPLEMENTED_BASE_KERNEL_NAMES:
+    # expand single
+    kernel_candidates.extend(_expand_single(kernel))
 
-        kernel_candidates.extend([
-            kernel + base_kernel(),
-            kernel * base_kernel(),
-            kernel * (base_kernel() + BASE_KERNELS['constant']())
-        ])
-
+    # expand combination
     kernel_candidates.extend(_expand_combination(kernel))
 
     return kernel_candidates
@@ -35,8 +50,33 @@ def expand_kernel(kernel: Kernel, grammar_kwargs=None) -> List[Kernel]:
 def _expand_combination(kernel: Kernel) -> List[Kernel]:
 
     if isinstance(kernel, (Sum, Product)):
-        return kernel.kernels
-
+        
+        operands = kernel.kernels
+        zero_one_pairs = ((0, 1), ) * len(operands)
+        all_subsets= itertools.product(*zero_one_pairs)
+        # all_subsets where len(operands) == 3: (0, 0, 0), (0, 0, 1), (0, 1, 0) and so one 
+        
+        results = []
+        for subset in all_subsets:
+            if (not sum(subset)==0) and (not sum(subset) == len(operands)):
+                unexpand = [deepcopy(op) for i, op in enumerate(operands) if not subset[i]]
+                to_be_expanded = [deepcopy(op) for i, op in enumerate(operands) if subset[i]]
+                
+                if len(to_be_expanded) >= 1:
+                    # make new kernel without unepanded operands
+                    k = deepcopy(kernel)
+                    k.kernels = to_be_expanded
+                    expansion = _expand_single(kernel)
+                else:
+                    expansion = expand_kernel(to_be_expanded[0])
+                
+                for expanded in expansion:
+                    k = deepcopy(kernel)
+                    k.kernels = [expanded] + unexpand
+                    results.append(k)
+        
+        return results
+            
     return []
 
 

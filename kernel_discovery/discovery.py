@@ -33,7 +33,8 @@ class ABCDiscovery(BaseDiscovery):
         find_n_best: int = 1,
         full_initial_base_kernel_expansion: bool = False,
         early_stopping_min_rel_delta: Optional[float] = None,
-        gammar_kwargs: Optional[Dict[str, Any]] = None
+        gammar_kwargs: Optional[Dict[str, Any]] = None,
+        run_local: Optional[bool]=True
     ) -> None:
 
         super().__init__()
@@ -49,7 +50,10 @@ class ABCDiscovery(BaseDiscovery):
         self.start_ast = kernel_to_ast(White(), include_param=True)
 
         # init either local or cluster evaluator
-        self.evaluator = ParallelEvaluator()
+        if run_local:
+            self.evaluator = LocalEvaluator()
+        else:
+            self.evaluator = ParallelEvaluator()
 
     def get_n_best(self, scored_kernels: Dict[str, Dict[str, Any]]):
         return sorted(scored_kernels, key=lambda kernel: scored_kernels[kernel]['score'])[:self.find_n_best]
@@ -58,7 +62,6 @@ class ABCDiscovery(BaseDiscovery):
 
         x, y = preprocessing(
             x, y, rescale_x_to_upper_bound=self.rescale_x_to_upper_bound)
-        datashape_x = get_datashape(x)
 
         self.logger.info(
             f'Starting the kernel discovery with base kernels `{IMPLEMENTED_BASE_KERNEL_NAMES}`')
@@ -76,15 +79,19 @@ class ABCDiscovery(BaseDiscovery):
         best_previous_kernels = self.get_n_best(scored_kernels)
 
         for depth in range(self.search_depth):
-
+            
+            # 1. get best models
             best_previous_kernels = self.get_n_best(scored_kernels)
 
+            # 2. greedily expand from the best one
             to_expand = [scored_kernels[kernel_name]['ast']
                          for kernel_name in best_previous_kernels]
             new_asts = expand_asts(to_expand)
 
             unscored_asts = [ast for ast in new_asts if ast_to_text(
                 ast) not in scored_kernels]
+            
+            # TODO: make multiple restarts
 
             if not unscored_asts:
                 stopping_reason = f"Depth `{depth}`: Empty search space, no new asts found"
@@ -124,12 +131,10 @@ if __name__ == "__main__":
 
     ticker = 'MSFT'
     start = '2021-01-01'
-    end = '2021-02-01'
-    x, y = retrieve(ticker_name=ticker, start=start, end=end)
+    end = '2021-07-01'
+    x, y, ticker = retrieve(ticker_name=ticker, start=start, end=end)
 
-    discovery = ABCDiscovery()
+    discovery = ABCDiscovery(run_local=False)
 
     results = discovery.discover(x, y)
-    desc = describe(list(results.values())[0]['ast'])
     print(results)
-    print(desc)
