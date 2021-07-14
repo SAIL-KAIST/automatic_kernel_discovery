@@ -1,3 +1,4 @@
+import re
 from yfinance import ticker
 from kernel_discovery.expansion.grammar import IMPLEMENTED_BASE_KERNEL_NAMES
 import logging
@@ -11,7 +12,7 @@ from kernel_discovery.preprocessing import get_datashape, preprocessing
 from kernel_discovery.description import kernel_to_ast, ast_to_text
 from kernel_discovery.expansion.expand import expand_asts
 from kernel_discovery.evaluation.evaluate import LocalEvaluator, ParallelEvaluator
-
+from collections import defaultdict
 
 class BaseDiscovery(object):
 
@@ -34,7 +35,8 @@ class ABCDiscovery(BaseDiscovery):
         full_initial_base_kernel_expansion: bool = False,
         early_stopping_min_rel_delta: Optional[float] = None,
         gammar_kwargs: Optional[Dict[str, Any]] = None,
-        run_local: Optional[bool]=True
+        run_local: Optional[bool]=True,
+        num_restarts: int = 3
     ) -> None:
 
         super().__init__()
@@ -46,6 +48,7 @@ class ABCDiscovery(BaseDiscovery):
         self.full_initial_base_kernel_expansion = full_initial_base_kernel_expansion
         self.early_stopy_min_rel_delta = early_stopping_min_rel_delta
         self.gammar_kwargs = gammar_kwargs
+        self.num_restarts = num_restarts
 
         self.start_ast = kernel_to_ast(White(), include_param=True)
 
@@ -91,18 +94,25 @@ class ABCDiscovery(BaseDiscovery):
             unscored_asts = [ast for ast in new_asts if ast_to_text(
                 ast) not in scored_kernels]
             
-            # TODO: make multiple restarts
 
             if not unscored_asts:
                 stopping_reason = f"Depth `{depth}`: Empty search space, no new asts found"
 
-            for optimized_ast, noise, score in self.evaluator.evaluate(x, y, unscored_asts):
-                scored_kernels[ast_to_text(optimized_ast)] = {
-                    'ast': optimized_ast,
-                    'noise': noise,
-                    'score': score,
-                    'depth': depth
-                }
+            # 3. optimize candidate kernels (with hyperparameter restarts)
+            result = defaultdict(list)
+            for _ in range(self.num_restarts):
+                for optimized_ast, noise, score in self.evaluator.evaluate(x, y, unscored_asts):
+                    result[ast_to_text(optimized_ast)].append({
+                        'ast': optimized_ast,
+                        'noise': noise,
+                        'score': score,
+                        'depth': depth
+                    })
+            # get the best score among multiple restarts
+            result = {k: sorted(result[k], key=lambda x: x['score'])[0]  for k in result.keys()}
+            scored_kernels.update(result)
+            
+            self.logger.info(f"Search depth {depth + 1}/{self.search_depth} is finished")
 
         self.logger.info(
             f'Finish model search, stopping reason was: \n\n\t{stopping_reason}\n')

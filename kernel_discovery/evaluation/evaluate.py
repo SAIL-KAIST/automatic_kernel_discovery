@@ -26,6 +26,14 @@ def bic(model: GPR):
     num_parameters = len(list(model.parameters))
     return 2. * nll(model) + num_parameters * np.log(model.data[0].shape[0])
 
+def init_noise_variance(datashape_y, sd=1.):
+    
+    if np.random.rand() < 0.5:
+        log_var = np.random.normal(loc=datashape_y.std - np.log(10), scale=sd)
+    else:
+        log_var = np.random.normal(loc=0., scale=sd)
+    
+    return np.exp(log_var)
 
 class BaseEvaluator(object):
 
@@ -52,7 +60,7 @@ class BaseEvaluator(object):
 
         kernel = ast_to_kernel(ast, init_func=init_func)
 
-        model = GPR(data=(x, y), kernel=kernel)
+        model = GPR(data=(x, y), kernel=kernel, noise_variance=init_noise_variance(datashape_y))
 
         optimizer = Scipy()
         try:

@@ -83,7 +83,7 @@ def _expand_combination(kernel: Kernel) -> List[Kernel]:
 if __name__ == "__main__":
 
     from typing import Callable
-    from kernel_discovery.kernel import Linear
+    from kernel_discovery.kernel import Linear, RBF, Periodic
     from kernel_discovery.description.transform import kernel_to_ast, ast_to_text
     # unit test
 
@@ -97,5 +97,19 @@ if __name__ == "__main__":
                       for k in expand_kernel(Linear())]
 
         assert set(expanded_1) == set(expanded_2)
+        
+    def test_expand_combination():
+        
+        k1 = Sum([RBF(), Linear()])
+        
+        results = _expand_combination(k1)
+        for result in results:
+            print(ast_to_text(kernel_to_ast(result)))
+        
+        k2 = Product([RBF(), Periodic(), Linear()])
+        result = _expand_combination(k2)
+        for result in results:
+            print(ast_to_text(kernel_to_ast(result)))
 
-    test_expand_kernel()
+    # test_expand_kernel()
+    test_expand_combination()

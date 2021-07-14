@@ -42,5 +42,7 @@ if __name__ == '__main__':
 
         assert set(expanded_kernels) == {ast_to_text(
             simplify(kernel_to_ast(k))) for k in res_should_be}
+        
+    
 
     test_expand_asts()
