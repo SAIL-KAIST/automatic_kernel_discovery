@@ -6,6 +6,7 @@ Python implemetation of
 """
 
 import os
+from re import X
 
 from numpy import random
 from numpy.core.fromnumeric import var
@@ -30,11 +31,12 @@ from scipy.signal import periodogram
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-logger = logging.getLogger("plot.py")
+logger = logging.getLogger(__file__)
 num_interp_points = 2000
 left_extend = 0.
 right_extend = 0.1
 env_thresh = 0.99
+jitter = 1e-6
 
 COLOR_PALETTE = sns.color_palette()
 GP_FIG_SIZE = (6,3)
@@ -94,7 +96,6 @@ def plot_gp(x: np.array, y: np.array, x_extrap: np.array, mean, var, data_only=F
 def sample_plot_gp(x, x_range, mean, covar):
 
     lw = 1.2
-    jitter = 1e-6
     num_samples = 3
     n = x_range.shape[0]
     L = np.linalg.cholesky(covar + jitter * np.eye(n))
@@ -115,6 +116,32 @@ def sample_plot_gp(x, x_range, mean, covar):
     ax.set_xlim(np.min(x_range), np.max(x_range))
     return fig, ax
 
+def compute_cholesky(K):
+    
+    if not isinstance(K, np.ndarray):
+        K = K.numpy()
+    L = np.linalg.cholesky(K + jitter * np.eye(K.shape[0]))
+    
+    return L
+
+def fullfact(levels):
+    
+    n = len(levels)  # number of factors
+    nb_lines = np.prod(levels)  # number of trial conditions
+    H = np.zeros((nb_lines, n))
+    
+    level_repeat = 1
+    range_repeat = np.prod(levels)
+    for i in range(n):
+        range_repeat //= levels[i]
+        lvl = []
+        for j in range(levels[i]):
+            lvl += [j]*level_repeat
+        rng = lvl*range_repeat
+        level_repeat *= levels[i]
+        H[:, i] = rng
+     
+    return H
 
 def gaussian_conditional(Kmn, Lmm, Knn, f, full_cov=False):
 
@@ -205,6 +232,12 @@ class Component():
     _CUM_SAMPLE = "cum_sample_{i}.{ext}"
     _ANTI_RES = "anti_res_{i}.{ext}"
     
+    # model check 
+    _MMD = "mmd_{i}.{ext}"
+    _QQ_BAND = "qq_band_{i}.{ext}"
+    _ACF_BAND = "acf_band_{i}.{ext}"
+    _PXX_BAND = "pxx_band_{i}.{ext}"
+    
     def __init__(self, kernel) -> None:
         
         self.kernel = kernel
@@ -223,6 +256,11 @@ class Component():
         self.mae = None
         self.mae_reduction = None
         
+        self.mmd_p_value = None
+        self.qq_d_max, self.qq_d_min = None, None
+        self.acf_min_loc, self.acf_min = None, None
+        self.pxx_max_loc, self.pxx_max = None, None
+        
         
     def listing_figures(self, i, ext):
         """Generate all figure names"""
@@ -234,6 +272,10 @@ class Component():
         self.cum_extrap = self._CUM_EXTRAP.format(i=i, ext=ext)
         self.cum_sample = self._CUM_SAMPLE.format(i=i, ext=ext)
         self.anti_res = self._ANTI_RES.format(i=i, ext=ext)
+        self.mmd = self._MMD.format(i=i, ext=ext)
+        self.qq = self._QQ_BAND.format(i=i, ext=ext)
+        self.acf = self._ACF_BAND.format(i=i, ext=ext)
+        self.pxx = self._PXX_BAND.format(i=i, ext=ext)
     
         
     def make_description(self):
@@ -538,9 +580,10 @@ class Result():
                 fig.savefig(file_name, **SAVEFIG_KWARGS)
                 self.logger.info(f"Plot residual after component {i+1}/{self.n_components}. Figure was saved at [{file_name}]")
 
-    def checking_stats(self):
-        
-        # TODO: see https://github.com/jamesrobertlloyd/gpss-research/blob/2a64958a018f1668f7b8eedf33c4076a63af7868/source/matlab/checking_stats.m
+    def checking_stats(self, samples=1000):
+        """
+        see https://github.com/jamesrobertlloyd/gpss-research/blob/2a64958a018f1668f7b8eedf33c4076a63af7868/source/matlab/checking_stats.m
+        """
         self.logger.info("Perform model check")
 
         complete_sigma = self.complete_kernel.K(self.x)
@@ -558,29 +601,97 @@ class Result():
                                                         f=self.y,
                                                         full_cov=True)
             
-            samples = 1000
+            
             random_indices = np.random.permutation(self.x.shape[0])
             x_post = self.x[random_indices]
             y_data_post = self.y[random_indices]
             
             decomp_sigma_post = component.kernel.K(x_post)
             
-            data_mean_post = gaussian_conditional(Kmn=decomp_sigma_post,
+            data_mean_post, _ = gaussian_conditional(Kmn=decomp_sigma_post,
                                                   Lmm=L_sigma,
                                                   Knn=decomp_sigma_post,
                                                   f=self.y)
             
-            # y_post =(y_data_post - data_mean_post) # TODO: random sample
             
-            # random_indices = np.random.permutation(self.x.shape[0])
-            # x_data, y_data = self.x[random_indices], self.y[random_indices]
-            # A = np.hstack([x_data, y_data])
-            # B = np.hstack([x_post, y_post])
+            L_sigma_post = compute_cholesky(decomp_sigma_post)
+            y_post = (y_data_post - data_mean_post[:,None]) + L_sigma_post.transpose() @ np.random.randn(L_sigma_post.shape[0],1)
             
-            # TODO: standarized A, B
             
-            # mmd_value, p_value = mmd_test(A, B, n_shuffle=samples)
-
+            # 1. MMD test and plot
+            self.logger.info("Run MMD test")
+            random_indices = np.random.permutation(self.x.shape[0])
+            x_data, y_data = self.x[random_indices], self.y[random_indices]
+            A = np.hstack([x_data, y_data])
+            B = np.hstack([x_post, y_post])
+            
+            # standarized A, B
+            A_std = np.std(A, axis=0) 
+            A_std = np.tile(A_std, (A.shape[0], 1))
+            A = A / A_std
+            B = B / A_std
+            
+            fig, ax, mmd_value, self.mmd_p_value = mmd_test(A, B, n_shuffle=samples)
+            ax.set_title(f"MMD two sample test plot for component {component.i}")
+            fig_name = os.path.join(self.save_dir, component.mmd)
+            fig.savefig(fig_name, **SAVEFIG_KWARGS)
+                    
+            
+            
+            # 2. make qq plot
+            self.logger.info("Make QQ plot")
+            prior_L = compute_cholesky(decomp_sigma)
+            post_L = compute_cholesky(data_covar)
+            fig, ax, self.qq_d_max, self.qq_d_min = make_qqplot(data_mean, prior_L=prior_L, post_L=post_L)
+            ax.set_title(f"QQ uncertainty plot for component {component.i}")
+            fig_name = os.path.join(self.save_dir, component.qq)
+            fig.savefig(fig_name, **SAVEFIG_KWARGS)
+            
+            # make a grid
+            x_data = np.sort(self.x)
+            x_data_delta = x_data[1:] - x_data[:-1]
+            min_delta = np.min(x_data_delta)
+            multiples = x_data_delta / min_delta
+            rounded_multiples = np.round(multiples * 10)/10
+            if np.all(rounded_multiples == 1):
+                x_grid = self.x
+                grid_distance = x_grid[1] - x_grid[0]
+                num_el = len(self.y)
+            else:
+                if np.all(rounded_multiples == np.round(rounded_multiples)):
+                    num_el = np.sum(rounded_multiples) + 1
+                else:
+                    num_el = len(self.x)
+                x_grid = np.linspace(np.min(self.x), np.max(self.x), num_el)[:, None]
+                grid_distance = x_grid[1] - x_grid[0]
+                
+            decomp_sigma_grid_x = component.kernel.K(x_grid, self.x)
+            decomp_sigma_grid = component.kernel.K(x_grid)
+            data_mean_grid, data_covar_grid = gaussian_conditional(Kmn=decomp_sigma_grid_x,
+                                                                   Lmm=L_sigma,
+                                                                   Knn=decomp_sigma_grid,
+                                                                   f=self.y,
+                                                                   full_cov=True)
+            
+            # 3. make acf plot
+            self.logger.info("Make ACF plot")
+            prior_L = compute_cholesky(decomp_sigma_grid)
+            post_L = compute_cholesky(data_covar_grid)
+            fig, ax, self.acf_min_loc, self.acf_min = make_acf_plot(data_mean_grid, prior_L=prior_L, post_L=post_L, grid_distance=grid_distance,samples=samples)
+            ax.set_title(f"ACF uncertainty plot for component {component.i}")
+            ax.set_ylabel("Correlation coefficient")
+            ax.set_xlabel("Lag")
+            fig_name = os.path.join(self.save_dir, component.acf)
+            fig.savefig(fig_name, **SAVEFIG_KWARGS)
+            
+            # 4. make periodogram plot 
+            self.logger.info("Make periodogram plot")
+            fig, ax, self.pxx_max_loc, self.pxx_max = make_peridogram(data_mean_grid, prior_L=prior_L, post_L=post_L, samples=samples)
+            ax.set_title(f"Periodogram uncertainty plot for component {component.i}")
+            ax.set_ylabel("Power / frequency")
+            ax.set_xlabel("Normalized frequency")
+            fig_name = os.path.join(self.save_dir, component.pxx)
+            fig.savefig(fig_name, **SAVEFIG_KWARGS)
 
 def compute_quantile(samples: np.array, ):
     
@@ -608,6 +719,9 @@ def compute_quantile(samples: np.array, ):
     return quantiled, qq_d_max, qq_d_min, mean, high, low
 
 def make_qqplot(data_mean, prior_L, post_L, samples=1000):
+
+    if len(data_mean.shape) == 1:
+        data_mean = data_mean[:, None]
 
     n = data_mean.shape[0]
     prior_samples = np.matmul(prior_L.transpose(), np.random.randn(n, samples))
@@ -790,7 +904,37 @@ def mmd_test(x, y, sigma=None, n_shuffle=1000):
     mmdval = np.mean(Kx) + np.mean(Ky) - 2 * np.mean(Kxy)
     
     p_value = permutation_test(kernel, n1=x.shape[0], n2=y.shape[0], n_shuffle=n_shuffle)
-    return mmdval, p_value
+    
+    fig, ax = mmd_plot(x, y, sxy=sxy)
+    
+    return fig, ax, mmdval, p_value
+
+def mmd_plot(x, y, sxy):
+    
+    # plot
+    t = (fullfact([200, 200]) -0.5) / 200
+    x_y = np.vstack([x,y])
+    max_min = np.max(x_y, axis=0) - np.min(x_y, axis=0)
+    t = t * (1.4 * np.tile(max_min, [t.shape[0], 1]))
+    t = t + np.tile(np.min(x_y, axis=0) - 0.2 * max_min, [t.shape[0], 1])
+    
+    d1 = distmat(np.vstack([x, t]))
+    d1 = d1[:x.shape[0], x.shape[0]:]
+    K1 = np.exp(-d1 /(sxy**2))
+    d2 = distmat(np.vstack([y, t]))
+    d2 = d2[:y.shape[0], y.shape[0]:]
+    K2 = np.exp(-d2 / (sxy * 2) )
+    
+    witness = np.sum(K1, axis=0) / x.shape[0] - np.sum(K2, axis=0) / y.shape[0]
+    
+    witness = np.reshape(witness, (200, 200))
+    
+    fig, ax = plt.subplots(figsize=GP_FIG_SIZE)
+    ax.imshow(witness, extent=[0, 1, 0, 1])
+    
+    return fig, ax
+    
+    
 
 if __name__ == '__main__':
 
@@ -844,7 +988,7 @@ if __name__ == '__main__':
 
         kernel = RBF() + RBF(lengthscales=0.5)
         kernel = kernel_to_ast(kernel)
-        result = Result(x, y, kernel, noise=np.array(0.1), root="./figure")
+        result = Result(x, y, kernel, noise=np.array(0.1), save_dir="./figure")
         result.process()
         
         for component in result.components:
@@ -855,6 +999,12 @@ if __name__ == '__main__':
         y = np.random.randn(200,2)
         value = mmd_test(x, y)
         print(value)
+        
+    def test_mmd_plot():
+        x = np.random.randn(100,2)
+        y = np.random.randn(200,2)
+        fig, ax = mmd_plot(x, y, sxy=1.)
+        fig.savefig("dummy.png")
         
     def test_compute_quantile():
         samples = np.random.randn(2, 1000)
@@ -909,11 +1059,12 @@ if __name__ == '__main__':
     # test_component_and_stat()
     # test_cummulative_plot()
     # test_order_mae()
-    # test_result_object()
+    test_result_object()
     
     # test_mmd()
+    # test_mmd_plot()
     # test_compute_quantile()
-    test_make_qq_plot()
+    # test_make_qq_plot()
     
     # test_compute_acf()
     # test_make_acf()
