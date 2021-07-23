@@ -631,7 +631,7 @@ class Result():
             A = A / A_std
             B = B / A_std
             
-            fig, ax, mmd_value, self.mmd_p_value = mmd_test(A, B, n_shuffle=samples)
+            fig, ax, mmd_value, component.mmd_p_value = mmd_test(A, B, n_shuffle=samples)
             ax.set_title(f"MMD two sample test plot for component {component.i}")
             fig_name = os.path.join(self.save_dir, component.mmd)
             fig.savefig(fig_name, **SAVEFIG_KWARGS)
@@ -642,7 +642,7 @@ class Result():
             self.logger.info("Make QQ plot")
             prior_L = compute_cholesky(decomp_sigma)
             post_L = compute_cholesky(data_covar)
-            fig, ax, self.qq_d_max, self.qq_d_min = make_qqplot(data_mean, prior_L=prior_L, post_L=post_L)
+            fig, ax, component.qq_d_max, component.qq_d_min = make_qqplot(data_mean, prior_L=prior_L, post_L=post_L)
             ax.set_title(f"QQ uncertainty plot for component {component.i}")
             fig_name = os.path.join(self.save_dir, component.qq)
             fig.savefig(fig_name, **SAVEFIG_KWARGS)
@@ -659,13 +659,13 @@ class Result():
                 num_el = len(self.y)
             else:
                 if np.all(rounded_multiples == np.round(rounded_multiples)):
-                    num_el = np.sum(rounded_multiples) + 1
+                    num_el = int(np.sum(rounded_multiples) + 1)
                 else:
                     num_el = len(self.x)
                 x_grid = np.linspace(np.min(self.x), np.max(self.x), num_el)[:, None]
                 grid_distance = x_grid[1] - x_grid[0]
                 
-            decomp_sigma_grid_x = component.kernel.K(x_grid, self.x)
+            decomp_sigma_grid_x = component.kernel.K(self.x, x_grid)
             decomp_sigma_grid = component.kernel.K(x_grid)
             data_mean_grid, data_covar_grid = gaussian_conditional(Kmn=decomp_sigma_grid_x,
                                                                    Lmm=L_sigma,
@@ -677,7 +677,7 @@ class Result():
             self.logger.info("Make ACF plot")
             prior_L = compute_cholesky(decomp_sigma_grid)
             post_L = compute_cholesky(data_covar_grid)
-            fig, ax, self.acf_min_loc, self.acf_min = make_acf_plot(data_mean_grid, prior_L=prior_L, post_L=post_L, grid_distance=grid_distance,samples=samples)
+            fig, ax, component.acf_min_loc, component.acf_min = make_acf_plot(data_mean_grid, prior_L=prior_L, post_L=post_L, grid_distance=grid_distance,samples=samples)
             ax.set_title(f"ACF uncertainty plot for component {component.i}")
             ax.set_ylabel("Correlation coefficient")
             ax.set_xlabel("Lag")
@@ -686,7 +686,7 @@ class Result():
             
             # 4. make periodogram plot 
             self.logger.info("Make periodogram plot")
-            fig, ax, self.pxx_max_loc, self.pxx_max = make_peridogram(data_mean_grid, prior_L=prior_L, post_L=post_L, samples=samples)
+            fig, ax, component.pxx_max_loc, component.pxx_max = make_peridogram(data_mean_grid, prior_L=prior_L, post_L=post_L, samples=samples)
             ax.set_title(f"Periodogram uncertainty plot for component {component.i}")
             ax.set_ylabel("Power / frequency")
             ax.set_xlabel("Normalized frequency")

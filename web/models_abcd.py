@@ -48,7 +48,14 @@ class Component(models.Model):
     
     
     # some more stastic for model checking
-    # TODO: 
+    mmd_p_value=models.FloatField()
+    qq_d_max = models.FloatField()
+    qq_d_min = models.FloatField()
+    acf_min_loc = models.FloatField()
+    acf_min = models.FloatField()
+    pxx_max_loc = models.FloatField()
+    pxx_max = models.FloatField()
+    
     
     # figure:
     # TODO: figure name seems to follows some patterns. So do not need to explicitly save it 

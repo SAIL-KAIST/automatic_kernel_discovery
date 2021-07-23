@@ -66,6 +66,15 @@ def make_all_figures_and_report(x: np.array, y: np.array, kernel: Node, noise: n
                               cum_res_var=comp.cum_res_var,
                               )
         
+        # model checking
+        web_comp.mmd_p_value = comp.mmd_p_value
+        web_comp.acf_min = comp.acf_min
+        web_comp.acf_min_loc = comp.acf_min_loc
+        web_comp.pxx_max = comp.pxx_max
+        web_comp.pxx_max_loc = comp.pxx_max_loc
+        web_comp.qq_d_max = comp.qq_d_max
+        web_comp.qq_d_min = comp.qq_d_min
+        
         # add image info
         web_comp.fit = comp.fit
         web_comp.extrap = comp.extrap
