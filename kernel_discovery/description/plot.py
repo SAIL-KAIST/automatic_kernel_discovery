@@ -144,12 +144,14 @@ def fullfact(levels):
     return H
 
 def gaussian_conditional(Kmn, Lmm, Knn, f, full_cov=False):
-
+    
     A = tf.linalg.triangular_solve(Lmm, Kmn, lower=True)
-    mean = tf.linalg.matmul(A, f, transpose_a=True)
     covar = Knn - tf.linalg.matmul(A, A, transpose_a=True)
     if not full_cov:
         covar = tf.linalg.diag_part(covar)
+        
+    A = tf.linalg.triangular_solve(tf.linalg.adjoint(Lmm), A, lower=False)
+    mean = tf.linalg.matmul(A, f, transpose_a=True)
 
     return mean.numpy().squeeze(), covar.numpy().squeeze()
 
@@ -985,7 +987,7 @@ if __name__ == '__main__':
         x_extrap = np.linspace(0, 5.5, 300)[:, None]
         y = np.sin(x)
 
-        kernel = RBF() + RBF(lengthscales=0.5)
+        kernel = RBF() # + RBF(lengthscales=0.5)
         component = RBF()
 
         mean, var = compute_mean_var(
@@ -994,7 +996,7 @@ if __name__ == '__main__':
         plot_gp(x.squeeze(), y.squeeze(), x_extrap.squeeze(),
                 mean.squeeze(), var.squeeze())
 
-        plt.savefig('dummy_2.png')
+        plt.savefig('dummy.png')
         
     def test_result_object():
         x = np.linspace(0, 5, 100)[:, None]
@@ -1069,11 +1071,11 @@ if __name__ == '__main__':
         
     # test_plot_gp()
     # test_sample_plot_gp()
-    # test_compute_mean_var()
+    test_compute_mean_var()
     # test_component_and_stat()
     # test_cummulative_plot()
     # test_order_mae()
-    test_result_object()
+    # test_result_object()
     
     # test_mmd()
     # test_mmd_plot()
