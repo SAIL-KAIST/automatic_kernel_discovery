@@ -123,9 +123,11 @@ def init_linear(datashape_x: DataShape, datashape_y: DataShape, sd=1.):
         log_variance = normal(loc=loc, scale=sd)
     else:
         log_variance = normal(loc=0., scale=sd)
+        
+    location = np.random.uniform(low=2 * datashape_x.min - datashape_x.max,
+                                 high=2 * datashape_x.max - datashape_x.min)
 
-    # TODO: implement new linear kernel with location parameter
-    init_params = Linear(variance=np.exp(log_variance)).parameters
+    init_params = Linear(variance=np.exp(log_variance), location=location).parameters
     return [p.numpy() for p in init_params]
 
 

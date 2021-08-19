@@ -8,12 +8,10 @@ Python implemetation of
 import os
 from re import X
 
-from numpy import random
 from numpy.core.fromnumeric import var
 from numpy.lib.function_base import quantile
 from kernel_discovery.description.describe import ProductDesc
 import logging
-from typing import Callable, List
 import numpy as np
 from numpy.core.defchararray import array
 import tensorflow as tf
@@ -26,6 +24,8 @@ from scipy.spatial.distance import cdist
 
 from statsmodels.tsa.stattools import acf
 from scipy.signal import periodogram
+
+import mlflow
 
 
 import matplotlib.pyplot as plt
@@ -429,12 +429,14 @@ class Result():
         fig, _ = plot_gp(self.x, self.y, self.x_range, complete_mean, complete_var, data_only=True)
         file_name = os.path.join(self.save_dir, "raw.png")
         fig.savefig(file_name, **SAVEFIG_KWARGS)
+        mlflow.log_figure(fig, os.path.basename(file_name))
         self.logger.info(f"Plot raw data and save at [{file_name}]")
 
         # plot full posterior
         fig, _= plot_gp(self.x, self.y, self.x_range, complete_mean, complete_var)
         file_name = os.path.join(self.save_dir, "fit.png")
         fig.savefig(file_name, **SAVEFIG_KWARGS)
+        mlflow.log_figure(fig, os.path.basename(file_name))
         self.logger.info(f"Plot full posterior and save at [{file_name}]")
 
         # plot sample from full posterior
@@ -448,6 +450,7 @@ class Result():
         fig, _ = sample_plot_gp(self.x, self.x_range, complete_mean, complete_covar)
         file_name = os.path.join(self.save_dir, "sample.png")
         fig.savefig(file_name, **SAVEFIG_KWARGS)
+        mlflow.log_figure(fig, os.path.basename(file_name))
         self.logger.info(f"Plot sample and save at [{file_name}]")
 
         for i, component  in enumerate(self.components):
@@ -485,6 +488,7 @@ class Result():
                 fig, _ = plot_gp(self.x, removed_mean, self.xrange_no_extrap, mean, var)
                 file_name = os.path.join(self.save_dir, component.fit)
                 fig.savefig(file_name, **SAVEFIG_KWARGS)
+                mlflow.log_figure(fig, os.path.basename(file_name))
                 self.logger.info(f"Plot posterior of component {i+1}/{len(self.components)}. Figure was saved at [{file_name}]")
 
                 mean, covar = compute_mean_var(self.x, 
@@ -497,12 +501,14 @@ class Result():
                 fig, _ = plot_gp(self.x, removed_mean, self.x_range, mean, np.diag(covar))
                 file_name = os.path.join(self.save_dir, component.extrap)
                 fig.savefig(file_name, **SAVEFIG_KWARGS)
+                mlflow.log_figure(fig, os.path.basename(file_name))
                 self.logger.info(
                     f"Plot posterior of component {i+1}/{len(self.components)} with extrapolation. Figure was saved at [{file_name}]")
 
                 fig, _ = sample_plot_gp(self.x, self.x_range, mean, covar)
                 file_name = os.path.join(self.save_dir, component.sample)
                 fig.savefig(file_name, **SAVEFIG_KWARGS)
+                mlflow.log_figure(fig, os.path.basename(file_name))
                 self.logger.info(f"Plot sample for component {i+1}/{len(self.components)}. Figure was saved at [{file_name}]")            
 
     def cummulative_stats_and_plots(self):
@@ -528,6 +534,7 @@ class Result():
             fig, _ = plot_gp(self.x, self.y, self.xrange_no_extrap, mean, var)
             file_name = os.path.join(self.save_dir, component.cum_fit)
             fig.savefig(file_name, **SAVEFIG_KWARGS)
+            mlflow.log_figure(fig, os.path.basename(file_name))
             self.logger.info(f"Plot sum of components up to component {i+1}/{self.n_components}. Figure was saved at [{file_name}]")
 
             # plot with extrapolation
@@ -541,13 +548,15 @@ class Result():
             fig, _ = plot_gp(self.x, self.y, self.x_range, mean, np.diag(covar))
             file_name = os.path.join(self.save_dir, component.cum_extrap)
             fig.savefig(file_name, **SAVEFIG_KWARGS)
+            mlflow.log_figure(fig, os.path.basename(file_name))
             self.logger.info(f"Plot sum of components up to component {i+1}/{self.n_components} with extrapolation. Figure was saved at [{file_name}]")
             
 
             # plot random sample with extrapolation
             fig, _ = sample_plot_gp(self.x, self.x_range, mean, covar)
             file_name = os.path.join(self.save_dir, component.cum_sample)
-            fig.savefig(file_name)
+            fig.savefig(file_name, **SAVEFIG_KWARGS)
+            mlflow.log_figure(fig, os.path.basename(file_name))
             self.logger.info(f"Plot sample for sum of components up to component {i+1}/{self.n_components} with extrapolation. Figure was save at [{file_name}]")
 
             d_mean, d_var = compute_mean_var(self.x, 
@@ -578,6 +587,7 @@ class Result():
                 fig, _ = plot_gp(self.x, residual, self.xrange_no_extrap, mean, var)
                 file_name = os.path.join(self.save_dir, component.anti_res)
                 fig.savefig(file_name, **SAVEFIG_KWARGS)
+                mlflow.log_figure(fig, os.path.basename(file_name))
                 self.logger.info(f"Plot residual after component {i+1}/{self.n_components}. Figure was saved at [{file_name}]")
 
     def checking_stats(self, samples=1000):
@@ -635,6 +645,7 @@ class Result():
             ax.set_title(f"MMD two sample test plot for component {component.i}")
             fig_name = os.path.join(self.save_dir, component.mmd)
             fig.savefig(fig_name, **SAVEFIG_KWARGS)
+            mlflow.log_figure(fig, os.path.basename(fig_name))
                     
             
             
@@ -646,6 +657,7 @@ class Result():
             ax.set_title(f"QQ uncertainty plot for component {component.i}")
             fig_name = os.path.join(self.save_dir, component.qq)
             fig.savefig(fig_name, **SAVEFIG_KWARGS)
+            mlflow.log_figure(fig, os.path.basename(fig_name))
             
             # make a grid
             x_data = np.sort(self.x)
@@ -683,6 +695,7 @@ class Result():
             ax.set_xlabel("Lag")
             fig_name = os.path.join(self.save_dir, component.acf)
             fig.savefig(fig_name, **SAVEFIG_KWARGS)
+            mlflow.log_figure(fig, os.path.basename(fig_name))
             
             # 4. make periodogram plot 
             self.logger.info("Make periodogram plot")
@@ -692,6 +705,7 @@ class Result():
             ax.set_xlabel("Normalized frequency")
             fig_name = os.path.join(self.save_dir, component.pxx)
             fig.savefig(fig_name, **SAVEFIG_KWARGS)
+            mlflow.log_figure(fig, os.path.basename(fig_name))
 
 def compute_quantile(samples: np.array, ):
     

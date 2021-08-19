@@ -13,6 +13,7 @@ from kernel_discovery.description import kernel_to_ast, ast_to_text
 from kernel_discovery.expansion.expand import expand_asts
 from kernel_discovery.evaluation.evaluate import LocalEvaluator, ParallelEvaluator
 from collections import defaultdict
+import mlflow
 
 class BaseDiscovery(object):
 
@@ -63,9 +64,6 @@ class ABCDiscovery(BaseDiscovery):
 
     def discover(self, x, y):
 
-        x, y = preprocessing(
-            x, y, rescale_x_to_upper_bound=self.rescale_x_to_upper_bound)
-
         self.logger.info(
             f'Starting the kernel discovery with base kernels `{IMPLEMENTED_BASE_KERNEL_NAMES}`')
 
@@ -96,7 +94,7 @@ class ABCDiscovery(BaseDiscovery):
             
 
             if not unscored_asts:
-                stopping_reason = f"Depth `{depth}`: Empty search space, no new asts found"
+                stopping_reason = f"Depth `{depth + 1}`: Empty search space, no new asts found"
 
             # 3. optimize candidate kernels (with hyperparameter restarts)
             result = defaultdict(list)
