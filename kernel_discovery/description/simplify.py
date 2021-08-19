@@ -95,7 +95,7 @@ def distribution(node: Node):
 
     node = deepcopy(node)
     _distribution(node)
-    return kernel_to_ast(ast_to_kernel(node))
+    return kernel_to_ast(ast_to_kernel(node), include_param=True)
 
 
 def _distribution(node: Node):
@@ -159,7 +159,17 @@ if __name__ == "__main__":
     def are_asts_equal(ast1, ast2):
 
         for a, b in zip(LevelOrderIter(ast1), LevelOrderIter(ast2)):
+            # check if they have the same name
             if a.name != b.name:
+                return False
+            # check if they have same parameters
+            if not hasattr(a, "parameters") and not hasattr(b, "parameters"):
+                continue
+            if hasattr(a, "parameters") and not hasattr(b, "parameters"):
+                return False
+            elif not hasattr(a, "parameters") and hasattr(b, "parameters"):
+                return False
+            elif not np.array_equal(a.parameters, b.parameters):
                 return False
         return True
 
@@ -249,7 +259,7 @@ if __name__ == "__main__":
 
     def test_simplify():
 
-        k = (Linear() + RBF()) * Periodic() * RBF() + \
+        k = (Linear(variance=2.) + RBF(lengthscales=2.)) * Periodic() * RBF() + \
             White() * Linear() * Periodic() * White()
 
         ast = kernel_to_ast(k)
@@ -271,6 +281,16 @@ if __name__ == "__main__":
 
         assert are_asts_equal(ast_should_be, simplify(ast))
         assert not are_asts_equal(ast, simplify(ast))
+        
+    def test_simplified_has_parameters():
+        k = Linear(variance=2.) + RBF(lengthscales=2.)
+        ast = kernel_to_ast(k, include_param=True)
+        
+        simplified_ast = simplify(ast)
+        
+        assert are_asts_equal(ast, simplified_ast)
+        
+        
 
     # test_distribution()
 
@@ -278,4 +298,6 @@ if __name__ == "__main__":
 
     # test_replace_white_products()
 
-    test_simplify()
+    # test_simplify()
+    
+    test_simplified_has_parameters()
