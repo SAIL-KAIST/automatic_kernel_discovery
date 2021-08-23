@@ -83,3 +83,12 @@ def get_gradient(x, data_mean: np.array, envelop_diag: np.array, env_thresh = 0.
         return 0.
     else:
         return (data_mean_thresh[-1] - data_mean_thresh[0]) / (x_thresh[-1] - x_thresh[0])
+    
+
+def compute_cholesky(K, jitter=1e-3):
+    """TODO:safe cholesky computation"""
+    if not isinstance(K, np.ndarray):
+        K = K.numpy()
+    L = np.linalg.cholesky(K + jitter * np.eye(K.shape[0]))
+    
+    return L

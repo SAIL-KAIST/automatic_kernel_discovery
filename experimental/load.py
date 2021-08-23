@@ -16,7 +16,7 @@ from kernel_discovery.preprocessing import preprocessing
 @click.option("--end-time", type=str)
 def load(time_series, start_time, end_time):
     print(f"Get data for time series: {time_series}")
-    with mlflow.start_run() as run:
+    with mlflow.start_run(run_name="Load data") as run:
         x, y, ticker = retrieve(time_series, start_time, end_time)
         
         x, y = preprocessing(x, y, rescale_x_to_upper_bound=None)

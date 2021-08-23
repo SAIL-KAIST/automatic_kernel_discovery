@@ -19,7 +19,7 @@ from kernel_discovery.description.transform import ast_to_text, ast_to_kernel
 @click.option("--search-depth", type=int)
 def search(data_file, search_depth):
     
-    with mlflow.start_run() as run:
+    with mlflow.start_run(run_name="Search") as run:
         x, y = load_data(data_file)
         
         searcher = ABCDiscovery(search_depth=search_depth)

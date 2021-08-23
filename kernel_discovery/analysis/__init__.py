@@ -1,1 +1,1 @@
-from .result import Result, IndividualAnalysis
+from .result import Result, IndividualAnalysis, CummulativeAnalysis, ModelCheckingAnalysis

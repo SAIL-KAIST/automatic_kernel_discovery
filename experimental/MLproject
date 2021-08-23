@@ -29,12 +29,16 @@ entry_points:
         command: "python individual.py --model-file {model_file} --component-file {component_file}"
     
     analysis_cummulative:
-
-        command: "python cummulative.py"
+        parameters:
+            model_file: path
+            component_file: path
+        command: "python cummulative.py  --model-file {model_file} --component-file {component_file}"
 
     analysis_checking:
-
-        command: "python check.py"
+        parameters:
+            model_file: path
+            component_file: path
+        command: "python check.py --model-file {model_file} --component-file {component_file}"
 
     analysis_finalize:
 

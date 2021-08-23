@@ -1,4 +1,5 @@
 import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 from re import search
 import mlflow
 
@@ -10,7 +11,7 @@ def run_an_entry(entrypoint, parameters=None):
 
 def workflow():
     
-    with mlflow.start_run() as active_run:
+    with mlflow.start_run(run_name="Main") as active_run:
         
         # 1. LOAD
         load_run = run_an_entry("load_data")
@@ -21,16 +22,19 @@ def workflow():
         
         # 3. ANALYSIS
         model_file = os.path.join(search_run.info.artifact_uri, "model.pkl")
-        run_an_entry("analysis", {"model_file": model_file})
+        analysis_run = run_an_entry("analysis", {"model_file": model_file})
         
         # 3.1 
-        run_an_entry("analysis_individual", {})
+        component_file = os.path.join(analysis_run.info.artifact_uri, "components.pkl")
+        individual_run = run_an_entry("analysis_individual", {"model_file": model_file, "component_file":component_file})
         
         # 3.2
-        run_an_entry("analysis_cummulative", {})
+        component_file = os.path.join(individual_run.info.artifact_uri, "components.pkl")
+        cummulative_run = run_an_entry("analysis_cummulative", {"model_file": model_file, "component_file":component_file })
         
         # 3.3
-        run_an_entry("analysis_checking", {})
+        component_file = os.path.join(cummulative_run.info.artifact_uri, "components.pkl")
+        run_an_entry("analysis_checking", {"model_file": model_file, "component_file":component_file})
         
         # 3.4
         run_an_entry("analysis_finalize", {})

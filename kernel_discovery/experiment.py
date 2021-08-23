@@ -34,7 +34,7 @@ class Experiment():
     
     def search(self):
         self.logger.info("Start the kernel search ")
-        searcher = ABCDiscovery()
+        searcher = ABCDiscovery(search_depth=3)
         results = searcher.discover(self.x, self.y)
         # TODO: save results to some files
         results = list(results.values())
@@ -44,6 +44,7 @@ class Experiment():
         mlflow.log_text(ast_to_text(self.best_kernel), "kernel.txt")
         mlflow.log_metric("noise", float(self.optimized_noise))
         mlflow.log_metric("score", self.best_score)
+        self.logger.info(f"Search algorithm found \n \t {self.best_kernel} \n \t with score: {self.best_score:.3f}")
         
     
     def post_process(self):

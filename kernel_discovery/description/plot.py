@@ -32,11 +32,11 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 logger = logging.getLogger(__file__)
-num_interp_points = 2000
+num_interp_points = 1000
 left_extend = 0.
 right_extend = 0.1
 env_thresh = 0.99
-jitter = 1e-6
+jitter = 1e-3
 
 COLOR_PALETTE = sns.color_palette()
 GP_FIG_SIZE = (6,3)
@@ -1071,11 +1071,10 @@ if __name__ == '__main__':
         
     # test_plot_gp()
     # test_sample_plot_gp()
-    test_compute_mean_var()
+    # test_compute_mean_var()
     # test_component_and_stat()
     # test_cummulative_plot()
-    # test_order_mae()
-    # test_result_object()
+    test_result_object()
     
     # test_mmd()
     # test_mmd_plot()
