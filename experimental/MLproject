@@ -41,8 +41,10 @@ entry_points:
         command: "python check.py --model-file {model_file} --component-file {component_file}"
 
     analysis_finalize:
-
-        command: "python finalize.py"
+        parameters:
+            model_file: path
+            component_file: path
+        command: "python finalize.py --model-file {model_file} --component-file {component_file}"
 
     main:
 

@@ -24,20 +24,21 @@ def workflow():
         model_file = os.path.join(search_run.info.artifact_uri, "model.pkl")
         analysis_run = run_an_entry("analysis", {"model_file": model_file})
         
-        # 3.1 
+        # 3.1 individual analysis
         component_file = os.path.join(analysis_run.info.artifact_uri, "components.pkl")
         individual_run = run_an_entry("analysis_individual", {"model_file": model_file, "component_file":component_file})
         
-        # 3.2
+        # 3.2 cummulative analysis
         component_file = os.path.join(individual_run.info.artifact_uri, "components.pkl")
         cummulative_run = run_an_entry("analysis_cummulative", {"model_file": model_file, "component_file":component_file })
         
-        # 3.3
+        # 3.3 Model checking
         component_file = os.path.join(cummulative_run.info.artifact_uri, "components.pkl")
-        run_an_entry("analysis_checking", {"model_file": model_file, "component_file":component_file})
+        checking_run = run_an_entry("analysis_checking", {"model_file": model_file, "component_file":component_file})
         
-        # 3.4
-        run_an_entry("analysis_finalize", {})
+        # 3.4 Generate report
+        component_file = os.path.join(checking_run.info.artifact_uri, "components.pkl")
+        run_an_entry("analysis_finalize", {"model_file":model_file, "component_file":component_file})
     
 
 if __name__ == '__main__':
