@@ -210,7 +210,7 @@ class IndividualAnalysis(DownstreamAnalysis):
 
             if self.n_components > 1:
                 
-                excluded_kernel = Sum([k.kernel for k in self.components if k is not component])
+                excluded_kernel = Sum([ast_to_kernel(k["kernel"]) for k in self.components if k is not component])
                 removed_mean, _ = compute_mean_var(self.x, 
                                                 self.x, 
                                                 self.y, 
@@ -296,7 +296,7 @@ class CummulativeAnalysis(DownstreamAnalysis):
             anti_res_fig = None
             if i < self.n_components - 1:
                 anti_kernels = [
-                    comp.kernel for comp in self.components 
+                    comp["kernel"] for comp in self.components 
                     if comp["kernel"] not in accumulate_kernels]
                 anti_kernels = [ast_to_kernel(ast) for ast in anti_kernels]
                 sum_anti_kernel = Sum(anti_kernels)
