@@ -7,13 +7,13 @@ from kernel_discovery.description.transform import kernel_to_ast, ast_to_kernel
 from kernel_discovery.kernel import Periodic, Product, RBF, Sum, White, Linear, Polynomial, ChangePoints
 
 
-def simplify(node: Node):
+def simplify(node: Node, include_param=False):
 
     to_simplify = deepcopy(node)
     return replace_white_product(
         merge_rbfs(
             distribution(
-                to_simplify
+                to_simplify, include_param=include_param
             )
         )
     )
@@ -91,11 +91,11 @@ def _merge_rbfs(node: Node):
         _merge_rbfs(child)
 
 
-def distribution(node: Node):
+def distribution(node: Node, include_param=False):
 
     node = deepcopy(node)
     _distribution(node)
-    return kernel_to_ast(ast_to_kernel(node), include_param=True)
+    return kernel_to_ast(ast_to_kernel(node), include_param=include_param)
 
 
 def _distribution(node: Node):

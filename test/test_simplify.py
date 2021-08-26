@@ -4,10 +4,15 @@ from anytree import LevelOrderIter
 from kernel_discovery.kernel import Periodic, Product, RBF, Sum, White, Linear, Polynomial, ChangePoints
 from kernel_discovery.description.transform import kernel_to_ast, ast_to_kernel
 from kernel_discovery.description.simplify import distribution, merge_rbfs, replace_white_product, simplify
-
+from kernel_discovery.description.utils import pretty_ast
 
 def are_asts_equal(ast1, ast2):
 
+    _ast1 = list(LevelOrderIter(ast1))
+    _ast2 = list(LevelOrderIter(ast2))
+    if len(_ast1) != len(_ast2):
+        return False
+    
     for a, b in zip(LevelOrderIter(ast1), LevelOrderIter(ast2)):
         # check if they have the same name
         if a.name != b.name:
@@ -27,21 +32,8 @@ def test_distribution():
     k = (RBF() + White() * Linear()) * Polynomial()
     ast = kernel_to_ast(k)
 
-    # Level 1.
-    ast_should_be = Node(Sum, full_name='Sum')
-
-    # Level 2.
-    p1 = Node(Product, full_name='Product', parent=ast_should_be)
-    p2 = Node(Product, full_name='Product', parent=ast_should_be)
-
-    # Level 3.1
-    Node(Polynomial, parent=p1)
-    Node(RBF, parent=p1)
-
-    # Level 3.2
-    Node(Polynomial, parent=p2)
-    Node(White, parent=p2)
-    Node(Linear, parent=p2)
+    ast_should_be = Polynomial() * RBF() + Polynomial() * White() * Linear() 
+    ast_should_be = kernel_to_ast(ast_should_be)    
 
     assert are_asts_equal(distribution(ast), ast_should_be)
 
@@ -109,33 +101,48 @@ def test_replace_white_products():
 
 def test_simplify():
 
-    k = (Linear(variance=2.) + RBF(lengthscales=2.)) * Periodic() * RBF() + \
+    k = (Linear() + RBF()) * Periodic() * RBF() + \
         White() * Linear() * Periodic() * White()
 
     ast = kernel_to_ast(k)
 
-    ast_should_be = Node(Sum, full_name='Sum')
+    ast_should_be = Periodic() * Linear() * RBF() + Periodic() * RBF() + White() * Linear()
+    ast_should_be = kernel_to_ast(ast_should_be)
 
-    prod1 = Node(Product, full_name='Product', parent=ast_should_be)
-    Node(Periodic, full_name='Periodic', parent=prod1)
-    Node(Linear, full_name='Linear', parent=prod1)
-    Node(RBF, full_name='RBF', parent=prod1)
+    simplified = simplify(ast)
+    assert are_asts_equal(ast_should_be, simplified)
+    assert not are_asts_equal(ast, simplified)
+    
+def test_simplify_2():
+    
+    k = White() * Linear() * Periodic() * White()
 
-    prod2 = Node(Product, full_name='Product', parent=ast_should_be)
-    Node(Periodic, full_name='Periodic', parent=prod2)
-    Node(RBF, full_name='RBF', parent=prod2)
+    ast = kernel_to_ast(k)
 
-    prod3 = Node(Product, full_name='Product', parent=ast_should_be)
-    Node(White, full_name='White', parent=prod3)
-    Node(Linear, full_name='Linear', parent=prod3)
+    ast_should_be =  White() * Linear()
+    ast_should_be = kernel_to_ast(ast_should_be)
 
-    assert are_asts_equal(ast_should_be, simplify(ast))
-    assert not are_asts_equal(ast, simplify(ast))
+    simplified = simplify(ast)
+    assert are_asts_equal(ast_should_be, simplified)
+    assert not are_asts_equal(ast, simplified)
+    
+def test_simplify_3():
+    
+    k = (Linear() + RBF()) * Periodic() * RBF()
+
+    ast = kernel_to_ast(k)
+
+    ast_should_be =  Periodic() * Linear() * RBF() + Periodic() * RBF()
+    ast_should_be = kernel_to_ast(ast_should_be)
+
+    simplified = simplify(ast)
+    assert are_asts_equal(ast_should_be, simplified)
+    assert not are_asts_equal(ast, simplified)
     
 def test_simplified_has_parameters():
     k = Linear(variance=2.) + RBF(lengthscales=2.)
     ast = kernel_to_ast(k, include_param=True)
     
-    simplified_ast = simplify(ast)
+    simplified_ast = simplify(ast, include_param=True)
     
     assert are_asts_equal(ast, simplified_ast)
