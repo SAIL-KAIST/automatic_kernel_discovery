@@ -6,9 +6,9 @@ entry_points:
 
     load_data:
         parameters:
-            time_series: {type: string, default: "MSFT"}
-            start_time: {type: string, default: "2021-01-01"}
-            end_time: {type: string, default: "2021-03-01"}
+            time_series: {type: string}
+            start_time: {type: string}
+            end_time: {type: string}
         command: "python load.py --time-series {time_series} --start-time {start_time} --end-time {end_time}"
 
     search_kernel:
@@ -47,5 +47,8 @@ entry_points:
         command: "python finalize.py --model-file {model_file} --component-file {component_file}"
 
     main:
-
-        command: "python main.py"
+        parameters:
+            time_series: {type: string, default: "MSFT"}
+            start_time: {type: string, default: "2021-01-01"}
+            end_time: {type: string, default: "2021-03-01"}
+        command: "python main.py --time-series {time_series} --start-time {start_time} --end-time {end_time}"

@@ -31,9 +31,14 @@ class Result():
             kernel = ast_to_kernel(transformed_ast)
             return kernel.kernels if isinstance(kernel, Sum) else [kernel]
         
+        def do_simplify(input_ast):
+            transformed_ast = simplify(input_ast, include_param=True)
+            kernel = ast_to_kernel(transformed_ast)
+            return kernel.kernels if isinstance(kernel, Sum) else [kernel]
+        
         self.complete_kernel = ast_to_kernel(ast)
         
-        self.kernels = extract(ast, simplify)
+        self.kernels = do_simplify(ast)
         self.envelop_kernels = extract(ast, extract_envelop)
         self.noise = noise
         
