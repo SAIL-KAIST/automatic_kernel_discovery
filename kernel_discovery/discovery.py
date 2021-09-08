@@ -13,7 +13,6 @@ from kernel_discovery.description import kernel_to_ast, ast_to_text
 from kernel_discovery.expansion.expand import expand_asts
 from kernel_discovery.evaluation.evaluate import LocalEvaluator, ParallelEvaluator
 from collections import defaultdict
-import mlflow
 
 class BaseDiscovery(object):
 
@@ -36,7 +35,7 @@ class ABCDiscovery(BaseDiscovery):
         full_initial_base_kernel_expansion: bool = False,
         early_stopping_min_rel_delta: Optional[float] = None,
         gammar_kwargs: Optional[Dict[str, Any]] = None,
-        run_local: Optional[bool]=True,
+        cluster_kwargs: Optional[Dict[str, Any]]={},
         num_restarts: int = 3
     ) -> None:
 
@@ -54,10 +53,10 @@ class ABCDiscovery(BaseDiscovery):
         self.start_ast = kernel_to_ast(White(), include_param=True)
 
         # init either local or cluster evaluator
-        if run_local:
+        if len(cluster_kwargs)==0:
             self.evaluator = LocalEvaluator()
         else:
-            self.evaluator = ParallelEvaluator()
+            self.evaluator = ParallelEvaluator(**cluster_kwargs)
 
     def get_n_best(self, scored_kernels: Dict[str, Dict[str, Any]]):
         return sorted(scored_kernels, key=lambda kernel: scored_kernels[kernel]['score'])[:self.find_n_best]
@@ -142,7 +141,7 @@ if __name__ == "__main__":
     end = '2021-07-01'
     x, y, ticker = retrieve(ticker_name=ticker, start=start, end=end)
 
-    discovery = ABCDiscovery(run_local=False)
+    discovery = ABCDiscovery(cluster_kwargs=dict(cluster=None))
 
     results = discovery.discover(x, y)
     print(results)

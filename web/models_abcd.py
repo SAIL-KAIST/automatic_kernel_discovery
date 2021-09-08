@@ -20,7 +20,7 @@ class Report(models.Model):
     
     title = models.CharField(max_length=100)
     datetime = models.DateTimeField() # when to save to data base?
-    image_folder = models.ImageField(upload_to="AutomaticNews/") # point to the folder that the generated html need
+    run_id = models.CharField(max_length=100)
     
     class Meta:
         db_table = "web_report"

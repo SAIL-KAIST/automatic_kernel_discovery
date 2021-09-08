@@ -70,8 +70,8 @@ def make_report(x, components):
         summary, full_desc, extrap_desc = description.translate()
         
         component["summary"] = summary
-        component["full_desc"] = full_desc
-        component["extrap_desc"] =extrap_desc
+        component["full_desc"] = ".\n".join(full_desc)
+        component["extrap_desc"] =".\n".join(extrap_desc)
     
     return components
     
@@ -100,6 +100,10 @@ def analysis(model_file):
         components = model_check_analysis(x, y, ast, noise, components)
         #generate report
         components = make_report(x, components)
+        
+        # remove kernel object in each component to prevent pickle loading in the website
+        for component in components:
+            del component["kernel"] 
         
         save_file = save(components, name="components.pkl")
         mlflow.log_artifact(save_file)

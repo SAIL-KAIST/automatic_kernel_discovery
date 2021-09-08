@@ -213,8 +213,9 @@ class IndividualAnalysis(DownstreamAnalysis):
             component["monotonic"] = get_monotonic(d_mean, envelop_diag)
             component["gradient"] = get_gradient(self.x, d_mean, envelop_diag)
 
-            if self.n_components > 1:
-                
+            if self.n_components == 1:
+                removed_mean = self.y
+            else:
                 excluded_kernel = Sum([ast_to_kernel(k["kernel"]) for k in self.components if k is not component])
                 removed_mean, _ = compute_mean_var(self.x, 
                                                 self.x, 
@@ -222,23 +223,24 @@ class IndividualAnalysis(DownstreamAnalysis):
                                                 kernel=self.complete_kernel, 
                                                 component=excluded_kernel,
                                                 noise=self.noise)
-                fit_fig, _ = plot_gp(self.x, removed_mean, self.xrange_no_extrap, mean, var)
-                print(f"Plot posterior of component {i+1}/{len(self.components)}")
+                
+            fit_fig, _ = plot_gp(self.x, removed_mean, self.xrange_no_extrap, mean, var)
+            print(f"Plot posterior of component {i+1}/{len(self.components)}")
 
-                mean, covar = compute_mean_var(self.x, 
-                                           self.x_range,
-                                           self.y, 
-                                           kernel=self.complete_kernel, 
-                                           component=comp, 
-                                           noise=self.noise,
-                                           full_cov=True)
-                extrap_fig, _ = plot_gp(self.x, removed_mean, self.x_range, mean, np.diag(covar))
-                print(f"Plot posterior of component {i+1}/{len(self.components)} with extrapolation")
+            mean, covar = compute_mean_var(self.x, 
+                                        self.x_range,
+                                        self.y, 
+                                        kernel=self.complete_kernel, 
+                                        component=comp, 
+                                        noise=self.noise,
+                                        full_cov=True)
+            extrap_fig, _ = plot_gp(self.x, removed_mean, self.x_range, mean, np.diag(covar))
+            print(f"Plot posterior of component {i+1}/{len(self.components)} with extrapolation")
 
-                sample_fig, _ = sample_plot_gp(self.x, self.x_range, mean, covar)
-                print(f"Plot sample for component {i+1}/{len(self.components)}")            
+            sample_fig, _ = sample_plot_gp(self.x, self.x_range, mean, covar)
+            print(f"Plot sample for component {i+1}/{len(self.components)}")            
 
-                list_figs += [(fit_fig, extrap_fig, sample_fig)]
+            list_figs += [(fit_fig, extrap_fig, sample_fig)]
             
             return components, list_figs
 class CummulativeAnalysis(DownstreamAnalysis):

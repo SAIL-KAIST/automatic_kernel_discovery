@@ -14,6 +14,7 @@ from gpflow.optimizers.scipy import Scipy
 from kernel_discovery.kernel import RBF, Linear, Periodic, Polynomial, init_kernel
 
 import ray
+from ray.tune.integration.mlflow import mlflow_mixin
 import mlflow
 
 def nll(model: GPR):
@@ -121,5 +122,15 @@ class ParallelEvaluator(BaseEvaluator):
             refs.append(obj_ref)
 
         return ray.get(refs)
+    
+    
+class TuneEvaluation(BaseEvaluator):
+    
+    def evaluate(self, x, y, asts: List[Node]):
+        
+        def train_fn(config):
+            x, y, ast = config["x"], config["y"], config["ast"]
+            
+            
 
 

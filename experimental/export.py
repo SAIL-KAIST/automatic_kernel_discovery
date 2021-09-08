@@ -1,28 +1,13 @@
 import os
-import pickle
-import tempfile
 import mlflow
+from mlflow.tracking.client import MlflowClient
 from mlflow.utils.file_utils import get_local_path_or_none, TempDir
 from mlflow.tracking.artifact_utils import _download_artifact_from_uri
 import itertools
 
-def load_pickle(file):
-    
-    with open(file, "rb") as f:
-        result = pickle.load(f)
-    
-    return result
-
-def save(obj, name):
-    
-    tempdir = tempfile.mkdtemp()
-    save_file = os.path.join(tempdir, name)
-    with open(save_file, "wb") as f:
-        pickle.dump(obj, f)
-    
-    print(f"Save an obj to temporary file {save_file}")
-    
-    return save_file
+import sys
+from util import load_pickle
+sys.path.append("..")
 
 def download_artifacts(path, storage_dir):
     local_path = get_local_path_or_none(path)
@@ -107,3 +92,9 @@ def export(run_id, track_uri=None, search_id=None, analysis_id=None):
             client.log_artifact(run_id, dir)
     
     print("component log artifact")
+    
+    
+if __name__ == '__main__':
+    run_id = "009a8ab0b59c4089a464ac0bfa22807c"
+    tracking_uri = "file:///home/anhth/projects/automatic_news/experimental/mlruns/"
+    export(run_id, tracking_uri)

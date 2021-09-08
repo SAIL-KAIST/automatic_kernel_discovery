@@ -3,3 +3,4 @@
 *.png
 figure/
 mlruns/
+build/

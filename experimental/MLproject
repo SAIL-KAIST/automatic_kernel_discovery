@@ -15,7 +15,7 @@ entry_points:
         parameters:
             data_file: path
             search_depth: {type: int, default: 3}
-        command: "python search.py --data-file {data_file} --search-depth {search_depth}" 
+        command: "cd .. && python setup.py install && cd experimental && python search.py --data-file {data_file} --search-depth {search_depth}" 
     
     analysis:
         parameters:
