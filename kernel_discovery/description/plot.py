@@ -67,6 +67,7 @@ def plot_gp(x: np.array, y: np.array, x_extrap: np.array, mean, var, data_only=F
 
     fig, ax = plt.subplots(figsize=GP_FIG_SIZE)
     if not data_only:
+        ax.plot(x_extrap, mean, color=light_blue, lw=lw)
         ax.fill_between(x_extrap,
                          mean + 2 * np.sqrt(var),
                          mean - 2 * np.sqrt(var),
@@ -74,9 +75,6 @@ def plot_gp(x: np.array, y: np.array, x_extrap: np.array, mean, var, data_only=F
 
     if has_data:
         ax.plot(x, y, 'k.')
-
-    if not data_only:
-        ax.plot(x_extrap, mean, color=COLOR_PALETTE[0], lw=lw)
         
     # draw line if extrapolation
     if (not np.all(mean==0)) and (not np.max(x) == np.max(x_extrap)):

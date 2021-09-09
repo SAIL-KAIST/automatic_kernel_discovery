@@ -31,14 +31,9 @@ class Result():
             kernel = ast_to_kernel(transformed_ast)
             return kernel.kernels if isinstance(kernel, Sum) else [kernel]
         
-        def do_simplify(input_ast):
-            transformed_ast = simplify(input_ast, include_param=True)
-            kernel = ast_to_kernel(transformed_ast)
-            return kernel.kernels if isinstance(kernel, Sum) else [kernel]
-        
         self.complete_kernel = ast_to_kernel(ast)
         
-        self.kernels = do_simplify(ast)
+        self.kernels = self.complete_kernel.kernels if isinstance(self.complete_kernel, Sum) else [self.complete_kernelc]
         self.envelop_kernels = extract(ast, extract_envelop)
         self.noise = noise
         
@@ -223,8 +218,9 @@ class IndividualAnalysis(DownstreamAnalysis):
                                                 kernel=self.complete_kernel, 
                                                 component=excluded_kernel,
                                                 noise=self.noise)
+                removed_mean = self.y - removed_mean.reshape(self.y.shape)
                 
-            fit_fig, _ = plot_gp(self.x, removed_mean, self.xrange_no_extrap, mean, var)
+            fit_fig, _ = plot_gp(self.x, removed_mean, self.xrange_no_extrap, mean, var, has_data=False)
             print(f"Plot posterior of component {i+1}/{len(self.components)}")
 
             mean, covar = compute_mean_var(self.x, 
@@ -234,7 +230,7 @@ class IndividualAnalysis(DownstreamAnalysis):
                                         component=comp, 
                                         noise=self.noise,
                                         full_cov=True)
-            extrap_fig, _ = plot_gp(self.x, removed_mean, self.x_range, mean, np.diag(covar))
+            extrap_fig, _ = plot_gp(self.x, removed_mean, self.x_range, mean, np.diag(covar), has_data=False)
             print(f"Plot posterior of component {i+1}/{len(self.components)} with extrapolation")
 
             sample_fig, _ = sample_plot_gp(self.x, self.x_range, mean, covar)
@@ -242,7 +238,7 @@ class IndividualAnalysis(DownstreamAnalysis):
 
             list_figs += [(fit_fig, extrap_fig, sample_fig)]
             
-            return components, list_figs
+        return list_figs
 class CummulativeAnalysis(DownstreamAnalysis):
     
     def __init__(self, x, y, ast, noise) -> None:
@@ -314,7 +310,7 @@ class CummulativeAnalysis(DownstreamAnalysis):
                                              kernel=self.complete_kernel, 
                                              component=sum_anti_kernel, 
                                              noise=self.noise)
-                anti_res_fig, _ = plot_gp(self.x, residual, self.xrange_no_extrap, mean, var)
+                anti_res_fig, _ = plot_gp(self.x, residual, self.xrange_no_extrap, mean, var, has_data=False)
                 print(f"Plot residual after component {i+1}/{self.n_components}.")
 
             figs += [(cumm_fit_fig, cumm_extrap_fig, cumm_sample_fig, anti_res_fig)]
