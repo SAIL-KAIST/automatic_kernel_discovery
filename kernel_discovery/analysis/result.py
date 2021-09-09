@@ -332,7 +332,6 @@ class ModelCheckingAnalysis(DownstreamAnalysis):
         if self.noise is not None:
             complete_sigma = complete_sigma + tf.eye(self.x.shape[0], dtype=complete_sigma.dtype) * self.noise
 
-        L_sigma = tf.linalg.cholesky(complete_sigma)
 
         figs = []
         for i, component in enumerate(self.components):

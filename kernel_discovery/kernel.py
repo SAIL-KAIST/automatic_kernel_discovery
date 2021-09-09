@@ -37,7 +37,7 @@ class Linear(gpflow_Linear):
         self.location = gpflow.Parameter(location)
         self._validate_ard_active_dims(self.location)
 
-    def K(self, X, X2):
+    def K(self, X, X2=None):
         X = X - self.location
         if X2 is not None:
             X2 = X2 - self.location
