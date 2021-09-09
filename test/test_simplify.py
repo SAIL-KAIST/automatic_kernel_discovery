@@ -1,9 +1,15 @@
+from gpflow.kernels.statics import Constant
 import numpy as np
 from anytree import Node
 from anytree import LevelOrderIter
 from kernel_discovery.kernel import Periodic, Product, RBF, Sum, White, Linear, Polynomial, ChangePoints
 from kernel_discovery.description.transform import kernel_to_ast, ast_to_kernel
-from kernel_discovery.description.simplify import distribution, merge_rbfs, replace_white_product, simplify
+from kernel_discovery.description.simplify import (distribution, 
+                                                   merge_rbfs,
+                                                   replace_white_product,
+                                                   simplify,
+                                                   additive_refine,
+                                                   multiplicative_identity)
 from kernel_discovery.description.utils import pretty_ast
 
 def are_asts_equal(ast1, ast2):
@@ -98,6 +104,32 @@ def test_replace_white_products():
     Node(White, full_name='White', parent=ast_should_be)
 
     assert are_asts_equal(ast_should_be, replace_white_product(ast))
+    
+def test_additive_refine():
+    
+    kernel = White() + White() + Constant() + Constant() + RBF() * Linear()
+    
+    ast = kernel_to_ast(kernel)
+    
+    refined = additive_refine(ast)
+    
+    ast_should_be = kernel_to_ast(Constant() + White() +  RBF() * Linear())
+    
+    assert are_asts_equal(ast_should_be, refined)
+    
+    
+def test_multiplicative_identity():
+    
+    kernel = Constant() * Constant() * RBF()
+    
+    ast = kernel_to_ast(kernel)
+    
+    result_ast = multiplicative_identity(ast)
+    
+    ast_should_be = kernel_to_ast(RBF())
+    
+    are_asts_equal(result_ast, ast_should_be)
+    
 
 def test_simplify():
 
@@ -140,7 +172,7 @@ def test_simplify_3():
     assert not are_asts_equal(ast, simplified)
     
 def test_simplified_has_parameters():
-    k = Linear(variance=2.) + RBF(lengthscales=2.)
+    k = Linear(variance=2.) + RBF(lengthscales=2.) + White(0.1)
     ast = kernel_to_ast(k, include_param=True)
     
     simplified_ast = simplify(ast, include_param=True)

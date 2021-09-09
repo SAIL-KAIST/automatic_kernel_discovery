@@ -10,13 +10,98 @@ from kernel_discovery.kernel import Periodic, Product, RBF, Sum, White, Linear, 
 def simplify(node: Node, include_param=False):
 
     to_simplify = deepcopy(node)
-    return replace_white_product(
-        merge_rbfs(
-            distribution(
-                to_simplify, include_param=include_param
-            )
-        )
-    )
+    
+    # make into sum
+    distributed = distribution(to_simplify, include_param=include_param)
+    # product of RBFs is a single RBF
+    merged_rbfs = merge_rbfs(distributed)
+    # White x Stationary kernel -> White
+    white_product = replace_white_product(merged_rbfs)
+    # Constant x Kernel -> Constant
+    multiplied_constant = multiplicative_identity(white_product)
+    # White + ... + White -> White, Const + ... + Const -> Const
+    result = additive_refine(multiplied_constant)
+    
+    return result
+    
+    
+def additive_refine(node: Node):
+    node = deepcopy(node)
+    _additive_refine(node)
+    return node
+
+def _additive_refine(node: Node):
+    
+    if node.is_leaf:
+        return 
+    
+    def collapse(classname):
+        
+        children = [child for child in node.children if child.name is classname]
+        if len(children) > 1:
+            others = [child for child in node.children if child.name is not classname]
+            new_kids = [children[0]] + others
+            
+            if len(new_kids) == 1:
+                if node.is_root:
+                    node.name = new_kids[0].name
+                    try:
+                        node.full_name = new_kids[0].full_name
+                    except AttributeError:
+                        pass
+                else:
+                    new_kids[0].parent = node.parent
+                    node.parent = None
+                node.children = []
+            else:
+                node.children = new_kids
+                
+    collapse(White)
+    
+    collapse(Constant)
+                
+    for child in node.children:
+        _additive_refine(child)
+
+def multiplicative_identity(node: Node):
+    
+    node = deepcopy(node)
+    _multiplicative_identity(node)
+    return node
+
+def _multiplicative_identity(node: Node):
+    
+    if node.is_leaf:
+        return
+    
+    if isinstance(node, Product):
+        constant_children = [child for child in node.children if child.name is Constant]
+        
+        if len(constant_children) > 0:
+            others = [child for child in node.children if child.name is not Constant]
+            if len(others) == 0:
+                new_kids = [constant_children[0]]
+            else:
+                # obviously other kernel functions has their own variance hyperparmeters
+                # so we don't need to multiply with Constant kernel
+                new_kids = others
+            
+            if len(new_kids) == 1:
+                if node.is_root:
+                    node.name = new_kids[0].name
+                    try:
+                        node.full_name = new_kids[0].full_name
+                    except AttributeError:
+                        pass
+                else:
+                    new_kids[0].parent = node.parent
+                    node.parent = None
+                node.children = []
+            else:
+                node.children = new_kids
+                
+    for child in node.children:
+        _multiplicative_identity(child)
 
 
 def replace_white_product(node: Node):
