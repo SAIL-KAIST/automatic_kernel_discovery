@@ -24,6 +24,10 @@ def workflow(time_series, start_time, end_time):
     
     with mlflow.start_run(run_name="Main") as active_run:
         
+        mlflow.log_param("time series", time_series)
+        mlflow.log_param("start time", start_time)
+        mlflow.log_param("end time", end_time)
+        
         # 1. LOAD
         load_run = run_an_entry("load_data", {"time_series": time_series, "start_time":start_time, "end_time":end_time})
         mlflow.set_tag("load_run", load_run.info.run_id)

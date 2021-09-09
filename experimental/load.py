@@ -17,10 +17,9 @@ from kernel_discovery.preprocessing import preprocessing
 def load(time_series, start_time, end_time):
     print(f"Get data for time series: {time_series}")
     with mlflow.start_run(run_name="Load data") as run:
+        
         x, y, ticker = retrieve(time_series, start_time, end_time)
         
-        x, y = preprocessing(x, y, rescale_x_to_upper_bound=None)
-    
         local_dir = tempfile.mkdtemp()
         
         data_file = os.path.join(local_dir, "data.pkl")
@@ -30,6 +29,11 @@ def load(time_series, start_time, end_time):
         
         print(f"Save data to {data_file}")
         mlflow.log_artifact(data_file)
+        
+
+def load_local(time_series, start_time, end_time):
+    
+    pass
     
 
 if __name__ == '__main__':

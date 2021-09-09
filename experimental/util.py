@@ -39,7 +39,7 @@ def download_artifacts(path, storage_dir):
 def get_search_and_analysis(client, run):
     
     experiment_id = run.info.experiment_id
-    children_runs = client.search_runs([experiment_id], f"tags.mlflow.parentRunId = '{run_id}'") 
+    children_runs = client.search_runs([experiment_id], f"tags.mlflow.parentRunId = '{run.info.run_id}'") 
     
     if run.data.tags.__contains__("search_run") and run.data.tags.__contains__("analysis_run"):
         # if there are tags

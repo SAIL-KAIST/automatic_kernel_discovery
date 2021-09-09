@@ -13,7 +13,6 @@ from kernel_discovery.discovery import ABCDiscovery
 from kernel_discovery.description.transform import ast_to_text, ast_to_kernel
 
 # config for search
-SEARCH_DEPTH=6
 CLUSTER_KWARGS = dict(cluster=None)
 
 
@@ -25,7 +24,7 @@ def search(data_file, search_depth):
     with mlflow.start_run(run_name="Search") as run:
         x, y = load_data(data_file)
         
-        searcher = ABCDiscovery(search_depth=SEARCH_DEPTH, 
+        searcher = ABCDiscovery(search_depth=search_depth, 
                                 cluster_kwargs=CLUSTER_KWARGS)
         results = searcher.discover(x, y)
         results = list(results.values())

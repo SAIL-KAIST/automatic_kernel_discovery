@@ -2,7 +2,6 @@ import os
 import pickle
 import click
 import mlflow
-import tempfile
 from util import save, load_pickle
 
 # append working directory to Python path
@@ -11,19 +10,24 @@ sys.path.append("..")
 from kernel_discovery.analysis import Result, IndividualAnalysis, CummulativeAnalysis, ModelCheckingAnalysis
 from kernel_discovery.description.describe import ProductDesc
 
+import matplotlib.pyplot as plt
+
 
 def individual_analysis(x, y, ast, noise, components):
     
     result = IndividualAnalysis(x, y, ast, noise)
     result.load_components(components)
     
-    components, list_figs = result.analyze()
+    list_figs = result.analyze()
         
     for i, figs in enumerate(list_figs):
         fit_fig, extrap_fig, sample_fig = figs
         mlflow.log_figure(fit_fig, f"fit_{i}.png")
         mlflow.log_figure(extrap_fig, f"extrap_{i}.png")
         mlflow.log_figure(sample_fig, f"sample_{i}.png")
+        
+        for fig in figs:
+            plt.close(fig)
     
     return result.components
 
@@ -41,6 +45,9 @@ def cummulative_analysis(x, y, ast, noise, components):
         mlflow.log_figure(cumm_sample_fig, f"cum_sample_{i}.png")
         if anti_res_fig:
             mlflow.log_figure(anti_res_fig, f"anti_res_{i}.png")
+        
+        for fig in figs:
+            plt.close(fig)
     
     return result.components
     
@@ -57,12 +64,16 @@ def model_check_analysis(x, y, ast, noise, components):
         mlflow.log_figure(acf_fig, f"acf_band_{i}.png")
         mlflow.log_figure(pxx_fig, f"pxx_band_{i}.png")
         
+        for fig in figs:
+            plt.close(fig)
+        
     return result.components
 
 def make_report(x, components):
 
     
     for component in components:
+        print(component)
         kernel = component["kernel"]
         monotonic = component["monotonic"]
         gradient = component["gradient"]

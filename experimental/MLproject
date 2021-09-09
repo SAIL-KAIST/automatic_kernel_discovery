@@ -14,41 +14,17 @@ entry_points:
     search_kernel:
         parameters:
             data_file: path
-            search_depth: {type: int, default: 3}
-        command: "cd .. && python setup.py install && cd experimental && python search.py --data-file {data_file} --search-depth {search_depth}" 
+            search_depth: {type: int, default: 4}
+        command: "python search.py --data-file {data_file} --search-depth {search_depth}" 
     
     analysis:
         parameters:
             model_file: path
         command: "python analysis.py --model-file {model_file}"
 
-    analysis_individual:
-        parameters:
-            model_file: path
-            component_file: path
-        command: "python individual.py --model-file {model_file} --component-file {component_file}"
-    
-    analysis_cummulative:
-        parameters:
-            model_file: path
-            component_file: path
-        command: "python cummulative.py  --model-file {model_file} --component-file {component_file}"
-
-    analysis_checking:
-        parameters:
-            model_file: path
-            component_file: path
-        command: "python check.py --model-file {model_file} --component-file {component_file}"
-
-    analysis_finalize:
-        parameters:
-            model_file: path
-            component_file: path
-        command: "python finalize.py --model-file {model_file} --component-file {component_file}"
-
     main:
         parameters:
             time_series: {type: string, default: "MSFT"}
             start_time: {type: string, default: "2021-01-01"}
             end_time: {type: string, default: "2021-03-01"}
-        command: "python main.py --time-series {time_series} --start-time {start_time} --end-time {end_time}"
+        command: "cd .. && python setup.py install && cd experimental && python main.py --time-series {time_series} --start-time {start_time} --end-time {end_time}"
