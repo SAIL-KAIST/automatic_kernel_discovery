@@ -1,8 +1,8 @@
 
 from gpflow.kernels import RBF
 from gpflow.kernels.linears import Linear
-from gpflow.kernels.statics import White
-from kernel_discovery.description.simplify import simplify
+from gpflow.kernels.statics import Constant, White
+from kernel_discovery.description.simplify import simplify, distribution
 from kernel_discovery.description.transform import ast_to_kernel, ast_to_text, kernel_to_ast
 from typing import Any, Dict, List, Optional
 from anytree import Node
@@ -16,14 +16,18 @@ def expand_asts(asts: List[Node], grammar_kwargs: Optional[Dict[str, Any]] = Non
         kernel = ast_to_kernel(ast)
         for candidate in expand_kernel(kernel, grammar_kwargs):
             ast = kernel_to_ast(candidate)
-            ast = simplify(ast)
-            expanded_kernels[ast_to_text(ast)] = ast
+            simplified = simplify(ast)
+            simplified_text = ast_to_text(simplified)
+            expanded_kernels[simplified_text] = simplified
+            
+    print(len(expanded_kernels))
 
     return list(expanded_kernels.values())
 
 
 if __name__ == '__main__':
 
+    from kernel_discovery.description.utils import pretty_ast
     # unit test
     def test_expand_asts():
         k_linear = Linear()
@@ -43,6 +47,17 @@ if __name__ == '__main__':
         assert set(expanded_kernels) == {ast_to_text(
             simplify(kernel_to_ast(k))) for k in res_should_be}
         
+    def print_expand():
+        
+        k = Constant() * RBF()
+        
+        ast = kernel_to_ast(k)
+        
+        expanded = expand_asts([ast])
+        
+        for ast in expanded:
+            print(ast_to_text(ast))
+        
+    # test_expand_asts()
     
-
-    test_expand_asts()
+    print_expand()

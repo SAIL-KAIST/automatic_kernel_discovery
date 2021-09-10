@@ -74,7 +74,7 @@ def _multiplicative_identity(node: Node):
     if node.is_leaf:
         return
     
-    if isinstance(node, Product):
+    if node.name is Product:
         constant_children = [child for child in node.children if child.name is Constant]
         
         if len(constant_children) > 0:
@@ -187,21 +187,28 @@ def _distribution(node: Node):
 
     if node.is_leaf:
         return
+    
+    for child in node.children:
+        _distribution(child)
 
     if node.name is Product:
         sum_to_distribute = [
             child for child in node.children if child.name is Sum]
 
         if sum_to_distribute:
-            sum_to_distr = sum_to_distribute[0]
+            # sum_to_distr = sum_to_distribute[0]
             children_to_distribute_to = [
-                child for child in node.children if child is not sum_to_distr]
+                child for child in node.children if child not in sum_to_distribute]
 
             node.name = Sum
             node.full_name = 'Sum'
             node.children = []
+            
+            grand_children = []
+            for  sum_to_distr in sum_to_distribute:
+                grand_children.extend(sum_to_distr.children)
 
-            for child in sum_to_distr.children:
+            for child in grand_children:
                 new_prod = Node(name=Product, full_name='Product', parent=node)
 
                 new_kids = [deepcopy(child)
@@ -214,8 +221,7 @@ def _distribution(node: Node):
                 for kid in new_kids:
                     kid.parent = new_prod
 
-    for child in node.children:
-        _distribution(child)
+    
 
 
 def extract_envelop(node: Node):
