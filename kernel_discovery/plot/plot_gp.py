@@ -2,10 +2,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+from kernel_discovery.analysis.util import compute_cholesky
+
 
 GP_FIG_SIZE = (6,3)
 COLOR_PALETTE = sns.color_palette()
-jitter = 1e-3
 
 
 def plot_gp(x: np.array, y: np.array, x_extrap: np.array, mean, var, data_only=False, has_data=True):
@@ -57,7 +58,7 @@ def sample_plot_gp(x, x_range, mean, covar, num_samples=3):
     
     lw = 1.2
     n = x_range.shape[0]
-    L = np.linalg.cholesky(covar + jitter * np.eye(n))
+    L = compute_cholesky(covar)
 
     fig, ax = plt.subplots(figsize=GP_FIG_SIZE)
     for i in range(num_samples):

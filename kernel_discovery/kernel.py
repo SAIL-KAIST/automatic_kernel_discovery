@@ -4,6 +4,7 @@ from gpflow.models.training_mixins import Data
 from kernel_discovery.preprocessing import DataShape
 from typing import Dict
 from numpy.random import rand, normal
+from scipy import stats
 import numpy as np
 
 import gpflow
@@ -63,25 +64,26 @@ COMBINATION_KERNELS: Dict[str, Kernel] = {
     'product': Product
 }
 
-EPSILON=1e-5
+
+def positive_sample(loc, scale, lower=1e-5, upper=10e3):
+    return stats.truncnorm.rvs(a=lower, b=upper, loc=loc, scale=scale)
 
 def init_rbf(datashape_x: DataShape, datashape_y: DataShape, sd=1.):
 
     # lengthscale
     if rand() < 0.5:
-        log_lengthscale = normal(loc=datashape_x.std, scale=sd)
+        lengthscale = positive_sample(loc=datashape_x.std, scale=sd)
     else:
-        log_lengthscale = normal(loc=np.log(2*(datashape_x.max - datashape_x.min)),
-                                 scale=sd)
+        lengthscale = positive_sample(loc=2*(datashape_x.max - datashape_x.min), scale=sd)
 
     # variance
     if rand() < 0.5:
-        log_variance = normal(loc=np.log(datashape_y.std), scale=sd)
+        variance = positive_sample(loc=datashape_y.std, scale=sd)
     else:
-        log_variance = normal(loc=0, scale=sd)
+        variance = positive_sample(loc=0, scale=sd)
         
-    init_params = RBF(variance=np.exp(log_variance) + EPSILON,
-                    lengthscales=np.exp(log_lengthscale) + EPSILON).parameters
+    init_params = RBF(variance= variance,
+                    lengthscales=lengthscale).parameters
 
     return [p.numpy() for p in init_params]
 
@@ -89,27 +91,27 @@ def init_rbf(datashape_x: DataShape, datashape_y: DataShape, sd=1.):
 def init_periodic(datashape_x: DataShape, datashape_y: DataShape, sd=1.):
 
     # lengthscales
-    log_lengthscale = normal(loc=0, scale=sd)
+    lengthscale = positive_sample(loc=0, scale=sd)
 
     # periodicity
     if rand() < 0.5:
         # no mim_period
-        log_period = normal(loc=datashape_x.std-2., scale=sd)
+        period = positive_sample(loc=datashape_x.std/100., scale=sd)
         # TODO: min_period
     else:
-        log_period = normal(loc=np.log(datashape_x.max - datashape_x.min) - 3.2,
-                            scale=sd)
+        period = positive_sample(loc=(datashape_x.max - datashape_x.min)/(10**3.2),
+                                 scale=sd)
         # TODO: min_period
 
     # variance
     if rand() < 0.5:
-        log_variance = normal(loc=np.log(datashape_y.std), scale=sd)
+        variance = positive_sample(loc=datashape_y.std, scale=sd)
     else:
-        log_variance = normal(loc=0., scale=sd)
+        variance = positive_sample(loc=0., scale=sd)
 
-    init_params = Periodic(variance=np.exp(log_variance) + EPSILON,
-                        lengthscales=np.exp(log_lengthscale) + EPSILON,
-                        period=np.exp(log_period) + EPSILON).parameters
+    init_params = Periodic(variance=variance,
+                        lengthscales=lengthscale,
+                        period=period).parameters
 
     return [p.numpy() for p in init_params]
 
@@ -117,20 +119,20 @@ def init_periodic(datashape_x: DataShape, datashape_y: DataShape, sd=1.):
 def init_linear(datashape_x: DataShape, datashape_y: DataShape, sd=1.):
 
     r = rand()
-    # if r < 1. / 3.:
-    #     log_variance = normal(loc=datashape_y.std - datashape_x.std, scale=sd)
-    if r < 0.5:
+    if r < 1. / 3.:
+         variance = positive_sample(loc=datashape_y.std - datashape_x.std, scale=sd)
+    if r < 2. / 3:
         dist_y = datashape_y.max - datashape_y.min
         dist_x = datashape_x.max - datashape_x.min
         loc = np.log(np.abs(dist_y / dist_x))
-        log_variance = normal(loc=loc, scale=sd)
+        variance = positive_sample(loc=loc, scale=sd)
     else:
-        log_variance = normal(loc=0., scale=sd)
+        variance = positive_sample(loc=0., scale=sd)
         
     location = np.random.uniform(low=2 * datashape_x.min - datashape_x.max,
                                  high=2 * datashape_x.max - datashape_x.min)
 
-    init_params = Linear(variance=np.exp(log_variance) + EPSILON,
+    init_params = Linear(variance=variance,
                          location=location).parameters
     return [p.numpy() for p in init_params]
 
@@ -138,25 +140,22 @@ def init_linear(datashape_x: DataShape, datashape_y: DataShape, sd=1.):
 def init_white(datashape_x: DataShape, datashape_y: DataShape, sd=1.):
 
     if rand() < 0.5:
-        log_variance = normal(loc=np.log(datashape_y.std) - np.log(10), scale=sd)
+        variance = positive_sample(loc=datashape_y.std/10, scale=sd)
     else:
-        log_variance = normal(loc=0., scale=sd)
+        variance = positive_sample(loc=0., scale=sd)
 
-    init_params = White(variance=np.exp(log_variance) + EPSILON).parameters
+    init_params = White(variance=variance).parameters
     return [p.numpy() for p in init_params]
 
 
 def init_constant(datashape_x: DataShape, datashape_y: DataShape, sd=1.):
     r = rand()
     if r < 0.5:
-        if not np.isclose(datashape_y.mean, 0):
-            log_variance = normal(loc=np.log(np.abs(datashape_y.mean)), scale=sd)
-        else:
-            log_variance = normal(loc=0., scale=sd)
+        variance = positive_sample(loc=datashape_y.mean, scale=sd)
     else:
-        log_variance = normal(loc=0., scale=sd)
+        variance = positive_sample(loc=0., scale=sd)
 
-    init_params = Constant(variance=np.exp(log_variance) + EPSILON).parameters
+    init_params = Constant(variance=variance).parameters
     return [p.numpy() for p in init_params]
 
 

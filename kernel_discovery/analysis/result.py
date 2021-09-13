@@ -14,7 +14,7 @@ from kernel_discovery.analysis.util import (gaussian_conditional,
                                             compute_cholesky)
 from kernel_discovery.analysis.mmd import mmd_test, mmd_plot
 from kernel_discovery.description.transform import ast_to_kernel
-from kernel_discovery.description.plot import plot_gp, sample_plot_gp, two_band_plot
+from kernel_discovery.plot import plot_gp, sample_plot_gp, two_band_plot
 
 left_extend = 0.
 right_extend = 0.1

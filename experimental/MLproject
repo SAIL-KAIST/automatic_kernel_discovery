@@ -27,4 +27,5 @@ entry_points:
             time_series: {type: string, default: "MSFT"}
             start_time: {type: string, default: "2021-01-01"}
             end_time: {type: string, default: "2021-03-01"}
-        command: "cd .. && python setup.py install && cd experimental && python main.py --time-series {time_series} --start-time {start_time} --end-time {end_time}"
+            use_cache: {type: bool, default: true}
+        command: "cd .. && python setup.py install && cd experimental && python main.py --time-series {time_series} --start-time {start_time} --end-time {end_time} --use-cache {use_cache}"
