@@ -3,7 +3,7 @@ import numpy as np
 from anytree import Node
 from anytree import LevelOrderIter
 from kernel_discovery.kernel import Periodic, Product, RBF, Sum, White, Linear, Polynomial, ChangePoints
-from kernel_discovery.description.transform import kernel_to_ast, ast_to_kernel
+from kernel_discovery.description.transform import kernel_to_ast, ast_to_kernel, ast_to_text
 from kernel_discovery.description.simplify import (distribution, 
                                                    merge_rbfs,
                                                    replace_white_product,
@@ -42,7 +42,7 @@ def test_distribution():
     ast_should_be = kernel_to_ast(ast_should_be)    
 
     assert are_asts_equal(distribution(ast), ast_should_be)
-
+    
 def test_merge_rbfs():
 
     k = ((RBF() * RBF() + RBF() + RBF() + White() * Linear())) * \
@@ -120,7 +120,7 @@ def test_additive_refine():
     
 def test_multiplicative_identity():
     
-    kernel = Constant() * Constant() * RBF()
+    kernel = Constant() * RBF()
     
     ast = kernel_to_ast(kernel)
     

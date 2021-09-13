@@ -20,8 +20,6 @@ def expand_asts(asts: List[Node], grammar_kwargs: Optional[Dict[str, Any]] = Non
             simplified_text = ast_to_text(simplified)
             expanded_kernels[simplified_text] = simplified
             
-    print(len(expanded_kernels))
-
     return list(expanded_kernels.values())
 
 

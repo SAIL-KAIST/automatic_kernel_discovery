@@ -73,7 +73,6 @@ def make_report(x, components):
 
     
     for component in components:
-        print(component)
         kernel = component["kernel"]
         monotonic = component["monotonic"]
         gradient = component["gradient"]

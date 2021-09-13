@@ -203,7 +203,7 @@ class IndividualAnalysis(DownstreamAnalysis):
 
             # computes some statistics
             component["snr"] = 10 * np.log10(np.sum(d_mean**2) / np.sum(d_var))
-            component["var"] = (1 - np.var(self.y - d_mean) / np.var(self.y)) * 100
+            component["var"] = (1 - np.var(self.y - d_mean.reshape(self.y.shape)) / np.var(self.y)) * 100
             envelop_diag = envelop_comp.K_diag(self.x).numpy()
             component["monotonic"] = get_monotonic(d_mean, envelop_diag)
             component["gradient"] = get_gradient(self.x, d_mean, envelop_diag)
@@ -290,8 +290,8 @@ class CummulativeAnalysis(DownstreamAnalysis):
 
             # gather statistics here
             component["cum_snr"] = 10 * np.log10(np.sum(d_mean**2) / np.sum(d_var))
-            component["cum_var"] = (1. - np.var(self.y - d_mean) / np.var(self.y)) * 100
-            component["cum_res_var"] = (1. - np.var(self.y - d_mean) / np.var(residual)) * 100
+            component["cum_var"] = (1. - np.var(self.y - d_mean.reshape(self.y.shape)) / np.var(self.y)) * 100
+            component["cum_res_var"] = (1. - np.var(self.y - d_mean.reshape(self.y.shape)) / np.var(residual)) * 100
 
             # residual plot
             residual = self.y - np.reshape(d_mean, self.y.shape)
