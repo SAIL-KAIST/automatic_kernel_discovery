@@ -63,6 +63,7 @@ COMBINATION_KERNELS: Dict[str, Kernel] = {
     'product': Product
 }
 
+EPSILON=1e-5
 
 def init_rbf(datashape_x: DataShape, datashape_y: DataShape, sd=1.):
 
@@ -78,9 +79,11 @@ def init_rbf(datashape_x: DataShape, datashape_y: DataShape, sd=1.):
         log_variance = normal(loc=np.log(datashape_y.std), scale=sd)
     else:
         log_variance = normal(loc=0, scale=sd)
-
-    init_params = RBF(variance=np.exp(log_variance),
-                      lengthscales=np.exp(log_lengthscale)).parameters
+    try:
+        init_params = RBF(variance=np.exp(log_variance) + EPSILON,
+                        lengthscales=np.exp(log_lengthscale) + EPSILON).parameters
+    except:
+        raise RuntimeError([np.exp(log_variance),np.exp(log_lengthscale)])
     return [p.numpy() for p in init_params]
 
 
@@ -104,10 +107,13 @@ def init_periodic(datashape_x: DataShape, datashape_y: DataShape, sd=1.):
         log_variance = normal(loc=np.log(datashape_y.std), scale=sd)
     else:
         log_variance = normal(loc=0., scale=sd)
-    
-    init_params = Periodic(variance=np.exp(log_variance),
-                           lengthscales=np.exp(log_lengthscale),
-                           period=np.exp(log_period)).parameters
+
+    try:
+        init_params = Periodic(variance=np.exp(log_variance) + EPSILON,
+                            lengthscales=np.exp(log_lengthscale) + EPSILON,
+                            period=np.exp(log_period) + EPSILON).parameters
+    except:
+        raise RuntimeError([np.exp(log_variance),np.exp(log_lengthscale),np.exp(log_period)])
     return [p.numpy() for p in init_params]
 
 
@@ -127,7 +133,8 @@ def init_linear(datashape_x: DataShape, datashape_y: DataShape, sd=1.):
     location = np.random.uniform(low=2 * datashape_x.min - datashape_x.max,
                                  high=2 * datashape_x.max - datashape_x.min)
 
-    init_params = Linear(variance=np.exp(log_variance), location=location).parameters
+    init_params = Linear(variance=np.exp(log_variance) + EPSILON,
+                         location=location).parameters
     return [p.numpy() for p in init_params]
 
 
@@ -138,20 +145,18 @@ def init_white(datashape_x: DataShape, datashape_y: DataShape, sd=1.):
     else:
         log_variance = normal(loc=0., scale=sd)
 
-    init_params = White(variance=np.exp(log_variance)).parameters
+    init_params = White(variance=np.exp(log_variance) + EPSILON).parameters
     return [p.numpy() for p in init_params]
 
 
 def init_constant(datashape_x: DataShape, datashape_y: DataShape, sd=1.):
     r = rand()
-    if r < 1. / 3.:
+    if r < 0.5:
         log_variance = normal(loc=np.log(np.abs(datashape_y.mean)), scale=sd)
-    elif r < 2. / 3.:
-        log_variance = normal(loc=np.log(datashape_y.std), scale=sd)
     else:
         log_variance = normal(loc=0., scale=sd)
 
-    init_params = Constant(variance=np.exp(log_variance)).parameters
+    init_params = Constant(variance=np.exp(log_variance) + EPSILON).parameters
     return [p.numpy() for p in init_params]
 
 
