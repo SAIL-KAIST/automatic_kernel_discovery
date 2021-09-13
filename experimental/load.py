@@ -2,6 +2,7 @@ import os
 import click
 import pickle
 import mlflow
+from mlflow.utils.logging_utils import eprint
 import tempfile
 # append working directory to Python path
 import sys
@@ -15,10 +16,12 @@ from kernel_discovery.preprocessing import preprocessing
 @click.option("--start-time", type=str)
 @click.option("--end-time", type=str)
 def load(time_series, start_time, end_time):
-    print(f"Get data for time series: {time_series}")
+    eprint(f"Get data for time series: {time_series}")
     with mlflow.start_run(run_name="Load data") as run:
         
         x, y, ticker = retrieve(time_series, start_time, end_time)
+        
+        x, y = preprocessing(x, y, normalize_y_mean=True, normalize_y_std=False)
         
         local_dir = tempfile.mkdtemp()
         
