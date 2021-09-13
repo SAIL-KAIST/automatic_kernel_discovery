@@ -75,7 +75,7 @@ def init_rbf(datashape_x: DataShape, datashape_y: DataShape, sd=1.):
 
     # variance
     if rand() < 0.5:
-        log_variance = normal(loc=datashape_y.std, scale=sd)
+        log_variance = normal(loc=np.log(datashape_y.std), scale=sd)
     else:
         log_variance = normal(loc=0, scale=sd)
 
@@ -101,10 +101,10 @@ def init_periodic(datashape_x: DataShape, datashape_y: DataShape, sd=1.):
 
     # variance
     if rand() < 0.5:
-        log_variance = normal(loc=datashape_y.std, scale=sd)
+        log_variance = normal(loc=np.log(datashape_y.std), scale=sd)
     else:
         log_variance = normal(loc=0., scale=sd)
-
+    
     init_params = Periodic(variance=np.exp(log_variance),
                            lengthscales=np.exp(log_lengthscale),
                            period=np.exp(log_period)).parameters
@@ -114,9 +114,9 @@ def init_periodic(datashape_x: DataShape, datashape_y: DataShape, sd=1.):
 def init_linear(datashape_x: DataShape, datashape_y: DataShape, sd=1.):
 
     r = rand()
-    if r < 1. / 3.:
-        log_variance = normal(loc=datashape_y.std - datashape_x.std, scale=sd)
-    elif r < 2. / 3:
+    # if r < 1. / 3.:
+    #     log_variance = normal(loc=datashape_y.std - datashape_x.std, scale=sd)
+    if r < 0.5:
         dist_y = datashape_y.max - datashape_y.min
         dist_x = datashape_x.max - datashape_x.min
         loc = np.log(np.abs(dist_y / dist_x))
@@ -134,7 +134,7 @@ def init_linear(datashape_x: DataShape, datashape_y: DataShape, sd=1.):
 def init_white(datashape_x: DataShape, datashape_y: DataShape, sd=1.):
 
     if rand() < 0.5:
-        log_variance = normal(loc=datashape_y.std - np.log(10), scale=sd)
+        log_variance = normal(loc=np.log(datashape_y.std) - np.log(10), scale=sd)
     else:
         log_variance = normal(loc=0., scale=sd)
 
@@ -147,7 +147,7 @@ def init_constant(datashape_x: DataShape, datashape_y: DataShape, sd=1.):
     if r < 1. / 3.:
         log_variance = normal(loc=np.log(np.abs(datashape_y.mean)), scale=sd)
     elif r < 2. / 3.:
-        log_variance = normal(loc=datashape_y.std, scale=sd)
+        log_variance = normal(loc=np.log(datashape_y.std), scale=sd)
     else:
         log_variance = normal(loc=0., scale=sd)
 
@@ -177,9 +177,9 @@ if __name__ == "__main__":
 
     from kernel_discovery.io import retrieve
     from kernel_discovery.preprocessing import get_datashape, preprocessing
-    ticker, start, end = 'MSFT', '2021-01-01', '2021-02-01'
-    x, y = retrieve(ticker, start, end)
-    x, y = preprocessing(x, y, None)
+    ticker, start, end = 'TSLA', '2020-09-12', '2021-09-12'
+    x, y, ticker = retrieve(ticker, start, end)
+    x, y = preprocessing(x, y, normalize_y_mean=True, normalize_y_std=False)
     datashape_x, datashape_y = get_datashape(x), get_datashape(y)
 
     param = init_linear(datashape_x, datashape_y)
