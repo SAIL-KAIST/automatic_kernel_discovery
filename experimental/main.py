@@ -57,7 +57,7 @@ def check_if_already_ran(entry_point_name, parameters, git_commit, experiment_id
 
 def run_an_entry(entrypoint, parameters, git_commit, use_cache=True):
     
-    existing_run = check_if_already_ran(entrypoint, parameters)
+    existing_run = check_if_already_ran(entrypoint, parameters, git_commit)
     
     if use_cache and existing_run:
         eprint(f"Found existing run for entrypoint: {entrypoint} with parameters: {parameters}")
