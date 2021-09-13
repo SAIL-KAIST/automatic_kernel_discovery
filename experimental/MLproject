@@ -14,7 +14,7 @@ entry_points:
     search_kernel:
         parameters:
             data_file: path
-            search_depth: {type: int, default: 4}
+            search_depth: {type: int, default: 5}
         command: "python search.py --data-file {data_file} --search-depth {search_depth}" 
     
     analysis:
