@@ -21,7 +21,7 @@ def load(time_series, start_time, end_time):
         
         x, y, ticker = retrieve(time_series, start_time, end_time)
         
-        x, y = preprocessing(x, y, normalize_y_mean=True, normalize_y_std=False)
+        x, y = preprocessing(x, y, normalize_y_mean=False, normalize_y_std=False)
         
         local_dir = tempfile.mkdtemp()
         
