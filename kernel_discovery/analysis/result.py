@@ -33,7 +33,7 @@ class Result():
         
         self.complete_kernel = ast_to_kernel(ast)
         
-        self.kernels = self.complete_kernel.kernels if isinstance(self.complete_kernel, Sum) else [self.complete_kernelc]
+        self.kernels = self.complete_kernel.kernels if isinstance(self.complete_kernel, Sum) else [self.complete_kernel]
         self.envelop_kernels = extract(ast, extract_envelop)
         self.noise = noise
         
