@@ -1,4 +1,5 @@
 
+from kernel_discovery import description
 import jinja2
 import os
 from kernel_discovery.description.utils import english_length, english_point, to_ordinal
@@ -603,6 +604,75 @@ class ProductDesc():
 
         return summary, desc, x_desc
 
+
+def translate_p_value(component):
+    
+    def _convert_cum_prob_to_p_value(p):
+        return min([2*p, 2*(1-p)])
+    
+    p_values = [
+        _convert_cum_prob_to_p_value(component["acf_min"]),
+        _convert_cum_prob_to_p_value(component["acf_min_loc"]),
+        _convert_cum_prob_to_p_value(component["pxx_max"]),
+        _convert_cum_prob_to_p_value(component["pxx_max_loc"]),
+        component["qq_d_max"],
+        component["qq_d_min"]    
+    ]
+    
+    sort_indices = [i for i, value in sorted(enumerate(p_values), key=lambda x:x[1])]
+    
+    descriptions = []
+    hypotheses = []
+    
+    # ACF_MIN
+    if component["acf_min"] < 0.5:
+        descriptions += ["The minimum value of the ACF is unexpectedly low."] 
+        hypotheses += [""]
+    else:
+        descriptions += ["The minimum value of the ACF is unexpectedly high."]
+        hypotheses += [""]
+    # ACF_MIN_LOC
+    if component["acf_min_loc"] < 0.5:
+        descriptions += ["The location of the minimum value of the ACF is unexpectedly low."]
+        hypotheses += [""]
+    else:
+        descriptions += ["The location of the minimum value of the ACF is unexpectedly high."]
+        hypotheses += [""]
+    # PXX_MAX  
+    if component["pxx_max"] < 0.5:
+        descriptions += ["The maximum value of the periodogram is unexpectedly low."]
+        hypotheses += [""]
+    else:
+        descriptions += ["The maximum value of the periodogram is unexpectedly high."]
+        hypotheses += [""]
+    # PXX_MAX_LOC
+    if component["pxx_max_loc"] < 0.5:
+        descriptions += ["The frequency of the maximum value of the periodogram is unexpectedly low."]
+        hypotheses += [""]
+    else:
+        descriptions += ["The frequency of the maximum value of the periodogram is unexpectedly high."]
+        hypotheses += [""]
+    
+    descriptions += ["The qq plot has an unexpectedly large positive deviation from equality."]
+    hypotheses += ["The positive deviation in the qq-plot can indicate heavy positive tails if it occurs at the right of the plot or light negative tails if it occurs as the left."]
+    descriptions += ["The qq plot has an unexpectedly large negative deviation from equality."]
+    hypotheses += ["The negative deviation in the qq-plot can indicate heavy positive tails if it occurs at the right of the plot or light negative tails if it occurs as the left."]
+    
+    if np.all(np.array(p_values) > 0.05):
+        text = "No discrepancies between the prior and posterior of this component have been detected"
+    else:
+        text = " The following discrepancies between prior and posterior for this component have been detected"
+        
+    for index in sort_indices:
+        if p_values[index] <= 0.05:
+            text += f"{descriptions[index]} This discrepancy has an estimated $p$-value of {p_values[index]:.3f}"
+            
+    for index in sort_indices:
+        if (p_values[index] <= 0.05) and (not hypotheses[index] == ""):
+            text += f"\n {hypotheses[index]}"
+            
+    return text
+        
 
 def find_region_of_influence(k, intervals=[(-np.Inf, np.Inf)]):
     """

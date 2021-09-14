@@ -5,7 +5,7 @@ from collections import namedtuple
 logger = logging.getLogger(__package__)
 
 
-def preprocessing(x, y, normalize_y_mean=True, normalize_y_std=False):
+def preprocessing(x, y, normalize_y_mean=False, normalize_y_std=False):
 
     x = x.reshape(-1, 1).astype(float)
     y = y.reshape(-1, 1).astype(float)
