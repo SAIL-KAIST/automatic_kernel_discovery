@@ -120,6 +120,10 @@ def analysis(model_file):
         
 
 if __name__ == '__main__':
+    # ## debug
+    # model_file = "/home/anhth/projects/automatic_news/experimental/mlruns/0/27bc84d214484868a983ff90cf7eeff9/artifacts/model.pkl"
+    # analysis(model_file)
     
+    # main
     analysis()
     
