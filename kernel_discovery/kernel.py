@@ -6,6 +6,7 @@ from typing import Dict
 from numpy.random import rand, normal
 from scipy import stats
 import numpy as np
+import tensorflow as tf
 
 import gpflow
 
@@ -25,11 +26,18 @@ from gpflow.kernels import (
 
 
 class Periodic(gpflow_Periodic):
+    
+    """Reference: https://github.com/jamesrobertlloyd/gpss-research/blob/master/source/gpml/cov/covPeriodicNoDC.m"""
 
     def __init__(self, variance=1., lengthscales=1., period=1.):
         base_kernel = RBF(variance=variance, lengthscales=lengthscales)
         super().__init__(base_kernel, period=period)
-
+        
+    def K(self, x, x2=None):
+        
+        K = super().K(x, x2)
+        i0 = tf.math.bessel_i0e(1./self.base_kernel.lengthscales)
+        return (K - i0 * self.base_kernel.variance) / (1. - i0)
 
 class Linear(gpflow_Linear):
 

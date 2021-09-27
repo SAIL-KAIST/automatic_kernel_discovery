@@ -604,11 +604,11 @@ class ProductDesc():
 
         return summary, desc, x_desc
 
+def _convert_cum_prob_to_p_value(p):
+    return min([2*p, 2*(1-p)])
 
-def translate_p_value(component):
-    
-    def _convert_cum_prob_to_p_value(p):
-        return min([2*p, 2*(1-p)])
+
+def model_checking_report(component):
     
     p_values = [
         _convert_cum_prob_to_p_value(component["acf_min"]),
@@ -659,19 +659,45 @@ def translate_p_value(component):
     hypotheses += ["The negative deviation in the qq-plot can indicate heavy positive tails if it occurs at the right of the plot or light negative tails if it occurs as the left."]
     
     if np.all(np.array(p_values) > 0.05):
-        text = "No discrepancies between the prior and posterior of this component have been detected"
+        text = "<p> No discrepancies between the prior and posterior of this component have been detected. </p>"
     else:
-        text = " The following discrepancies between prior and posterior for this component have been detected"
-        
-    for index in sort_indices:
-        if p_values[index] <= 0.05:
-            text += f"{descriptions[index]} This discrepancy has an estimated $p$-value of {p_values[index]:.3f}"
-            
+        text = "<p> The following discrepancies between prior and posterior for this component have been detected. </p>"
+        text += "\n <ul> \n"
+        for index in sort_indices:
+            if p_values[index] <= 0.05:
+                text += f"\t <li> {descriptions[index]} This discrepancy has an estimated $p$-value of {p_values[index]:.3f}. </li> \n"
+        text += "</ul> \n"
     for index in sort_indices:
         if (p_values[index] <= 0.05) and (not hypotheses[index] == ""):
-            text += f"\n {hypotheses[index]}"
-            
-    return text
+            text += f"<p> {hypotheses[index]} </p> \n"
+    
+    bad_fit_ret = bad_fit(component)
+    
+    return text, bad_fit_ret
+    
+def bad_fit(component):
+    
+    p_values = [
+        _convert_cum_prob_to_p_value(component["acf_min"]),
+        _convert_cum_prob_to_p_value(component["acf_min_loc"]),
+        _convert_cum_prob_to_p_value(component["pxx_max"]),
+        _convert_cum_prob_to_p_value(component["pxx_max_loc"]),
+        component["qq_d_max"],
+        component["qq_d_min"]    
+    ]
+    
+    ret = {}
+    if np.any(np.array(p_values) <= 0.01):
+        ret["bad_fit"] = True
+        ret["moderate_bad_fit"] = False
+    elif np.any(np.array(p_values) <= 0.05):
+        ret["bad_fit"] = False
+        ret["moderate_bad_fit"] = True
+    else:
+        ret["bad_fit"] = False
+        ret["moderate_bad_fit"] = False
+        
+    return ret
         
 
 def find_region_of_influence(k, intervals=[(-np.Inf, np.Inf)]):
@@ -847,6 +873,35 @@ if __name__ == "__main__":
         short_descriptions = [summary]
         produce_summary(dataset_name, n_components,
                         fit_data, short_descriptions)
+    
+    def test_model_checking_report():
+        
+        components = {
+            "acf_min": 0.1,
+            "acf_min_loc": 0.1,
+            "pxx_max": 0.1,
+            "pxx_max_loc": 0.1,
+            "acf_min": 0.1,
+            "qq_d_max": 0.1,
+            "qq_d_min": 0.1,
+        }
+        
+        ret = model_checking_report(components)
+        print(ret)
+        
+        
+        components = {
+            "acf_min": 0.01,
+            "acf_min_loc": 0.6,
+            "pxx_max": 0.01,
+            "pxx_max_loc": 0.6,
+            "acf_min": 0.01,
+            "qq_d_max": 0.01,
+            "qq_d_min": 0.6,
+        }
+        
+        ret = model_checking_report(components)
+        print(ret)
 
     # test_describe()
     # test_translate_prod_1()
@@ -856,4 +911,6 @@ if __name__ == "__main__":
     # test_translate_prod_5()
     # test_translate_prod_6()
 
-    test_produce_summary()
+    # test_produce_summary()
+    
+    test_model_checking_report()

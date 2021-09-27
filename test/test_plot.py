@@ -1,7 +1,7 @@
 import pytest
 
 import numpy as np
-from kernel_discovery.plot import plot_gp, sample_plot_gp
+from kernel_discovery.plot.plot_gp import plot_gp_regression, sample_plot_gp
 
 
 def test_plot_gp():
@@ -12,7 +12,7 @@ def test_plot_gp():
         mean = np.sin(x_extrap)
         var = np.ones(200)*0.1
 
-        fig, ax = plot_gp(x, y, x_extrap, mean, var)
+        fig, ax = plot_gp_regression(x, y, x_extrap, mean, var)
 
         fig.savefig("dummy.png")
 

@@ -85,18 +85,19 @@ def get_gradient(x, data_mean: np.array, envelop_diag: np.array, env_thresh = 0.
         return (data_mean_thresh[-1] - data_mean_thresh[0]) / (x_thresh[-1] - x_thresh[0])
 
 
-def compute_cholesky(K, max_tries=10, jitter=1e-6):
+def compute_cholesky(K, max_tries=10):
     
     if not isinstance(K, np.ndarray):
         K = K.numpy()
     try:
         L = np.linalg.cholesky(K)
     except:
+        K_max = np.max(K)
         for i in range(max_tries):
-            jitter_new = jitter * 10 ** i
+            jitter = K_max * 10 ** (i-max_tries)
             try:
-                L = np.linalg.cholesky(K + jitter_new * np.eye(K.shape[0]))
-                print(f"Added {jitter_new} to the diagon of matrix. Beware of imprecise result!!!")
+                L = np.linalg.cholesky(K + jitter * np.eye(K.shape[0]))
+                print(f"Added {jitter} to the diagon of matrix. Beware of imprecise result!!!")
                 return L
             except:
                 print("Increase jitter")

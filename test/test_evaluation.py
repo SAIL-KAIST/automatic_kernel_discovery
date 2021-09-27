@@ -1,10 +1,13 @@
+import pytest
+
 import numpy as np
 import gpflow
 from anytree import Node
 from kernel_discovery.evaluation.evaluate import LocalEvaluator, ParallelEvaluator
 from kernel_discovery.io import retrieve
 from kernel_discovery.preprocessing import preprocessing
-from kernel_discovery.description.plot import compute_mean_var, plot_gp
+# from kernel_discovery.plot.plot_gp import plot_gp_regression
+from kernel_discovery.analysis.util import compute_mean_var
 from kernel_discovery.description import ast_to_kernel
 
 def test_evaluate_on_msft():
@@ -20,7 +23,7 @@ def test_evaluate_on_msft():
     x_extrap = x
     kernel = ast_to_kernel(optimized_ast)
     mean, var = compute_mean_var(x, x_extrap, y, kernel=kernel, component=kernel, noise=noise)
-    fig, ax = plot_gp(x, y, x_extrap, mean, var)
+    # fig, ax = plot_gp_regression(x, y, x_extrap, mean, var)
     
     
 

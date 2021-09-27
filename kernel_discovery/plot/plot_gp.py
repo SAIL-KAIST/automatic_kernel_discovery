@@ -9,7 +9,7 @@ GP_FIG_SIZE = (6,3)
 COLOR_PALETTE = sns.color_palette()
 
 
-def plot_gp(x: np.array, y: np.array, x_extrap: np.array, mean, var, data_only=False, has_data=True):
+def plot_gp_regression(x: np.array, y: np.array, x_extrap: np.array, mean, var, data_only=False, has_data=True):
     """
 
     Args:

@@ -14,7 +14,7 @@ from kernel_discovery.analysis.util import (gaussian_conditional,
                                             compute_cholesky)
 from kernel_discovery.analysis.mmd import mmd_test, mmd_plot
 from kernel_discovery.description.transform import ast_to_kernel
-from kernel_discovery.plot import plot_gp, sample_plot_gp, two_band_plot
+from kernel_discovery.plot.plot_gp import plot_gp_regression, sample_plot_gp, two_band_plot
 
 left_extend = 0.
 right_extend = 0.1
@@ -139,11 +139,11 @@ class Result():
                                                        noise=self.noise)
 
         # plot raw data
-        raw_fig, _ = plot_gp(self.x, self.y, self.x_range, complete_mean, complete_var, data_only=True)
+        raw_fig, _ = plot_gp_regression(self.x, self.y, self.x_range, complete_mean, complete_var, data_only=True)
         print(f"Plot raw data")
 
         # plot full posterior
-        fit_fig, _= plot_gp(self.x, self.y, self.x_range, complete_mean, complete_var)
+        fit_fig, _= plot_gp_regression(self.x, self.y, self.x_range, complete_mean, complete_var)
         print((f"Post full posterior"))
         
         # plot sample from full posterior
@@ -220,7 +220,7 @@ class IndividualAnalysis(DownstreamAnalysis):
                                                 noise=self.noise)
                 removed_mean = self.y - removed_mean.reshape(self.y.shape)
                 
-            fit_fig, _ = plot_gp(self.x, removed_mean, self.xrange_no_extrap, mean, var, has_data=False)
+            fit_fig, _ = plot_gp_regression(self.x, removed_mean, self.xrange_no_extrap, mean, var, has_data=False)
             print(f"Plot posterior of component {i+1}/{len(self.components)}")
 
             mean, covar = compute_mean_var(self.x, 
@@ -230,7 +230,7 @@ class IndividualAnalysis(DownstreamAnalysis):
                                         component=comp, 
                                         noise=self.noise,
                                         full_cov=True)
-            extrap_fig, _ = plot_gp(self.x, removed_mean, self.x_range, mean, np.diag(covar), has_data=False)
+            extrap_fig, _ = plot_gp_regression(self.x, removed_mean, self.x_range, mean, np.diag(covar), has_data=False)
             print(f"Plot posterior of component {i+1}/{len(self.components)} with extrapolation")
 
             sample_fig, _ = sample_plot_gp(self.x, self.x_range, mean, covar)
@@ -262,7 +262,7 @@ class CummulativeAnalysis(DownstreamAnalysis):
                                          kernel=self.complete_kernel, 
                                          component=cumm_kernel, 
                                          noise=self.noise)
-            cumm_fit_fig, _ = plot_gp(self.x, self.y, self.xrange_no_extrap, mean, var)
+            cumm_fit_fig, _ = plot_gp_regression(self.x, self.y, self.xrange_no_extrap, mean, var)
             print(f"Plot sum of components up to component {i+1}/{self.n_components}")
 
             # plot with extrapolation
@@ -273,7 +273,7 @@ class CummulativeAnalysis(DownstreamAnalysis):
                                            component=cumm_kernel, 
                                            noise=self.noise, 
                                            full_cov=True)
-            cumm_extrap_fig, _ = plot_gp(self.x, self.y, self.x_range, mean, np.diag(covar))
+            cumm_extrap_fig, _ = plot_gp_regression(self.x, self.y, self.x_range, mean, np.diag(covar))
             print(f"Plot sum of components up to component {i+1}/{self.n_components} with extrapolation.")
             
 
@@ -310,7 +310,7 @@ class CummulativeAnalysis(DownstreamAnalysis):
                                              kernel=self.complete_kernel, 
                                              component=sum_anti_kernel, 
                                              noise=self.noise)
-                anti_res_fig, _ = plot_gp(self.x, residual, self.xrange_no_extrap, mean, var, has_data=False)
+                anti_res_fig, _ = plot_gp_regression(self.x, residual, self.xrange_no_extrap, mean, var, has_data=False)
                 print(f"Plot residual after component {i+1}/{self.n_components}.")
 
             figs += [(cumm_fit_fig, cumm_extrap_fig, cumm_sample_fig, anti_res_fig)]
@@ -360,22 +360,23 @@ class ModelCheckingAnalysis(DownstreamAnalysis):
             y_post = (y_data_post - data_mean_post[:,None]) + L_sigma_post.transpose() @ np.random.randn(L_sigma_post.shape[0],1)
             
             
+            ## TURN OFF FOR NOW. MMD test is quite slow. TODO: optimize further
             # 1. MMD test and plot
-            print("Run MMD test")
-            random_indices = np.random.permutation(self.x.shape[0])
-            x_data, y_data = self.x[random_indices], self.y[random_indices]
-            A = np.hstack([x_data, y_data])
-            B = np.hstack([x_post, y_post])
+            # print("Run MMD test")
+            # random_indices = np.random.permutation(self.x.shape[0])
+            # x_data, y_data = self.x[random_indices], self.y[random_indices]
+            # A = np.hstack([x_data, y_data])
+            # B = np.hstack([x_post, y_post])
             
-            # standarized A, B
-            A_std = np.std(A, axis=0) 
-            A_std = np.tile(A_std, (A.shape[0], 1))
-            A = A / A_std
-            B = B / A_std
+            # # standarized A, B
+            # A_std = np.std(A, axis=0) 
+            # A_std = np.tile(A_std, (A.shape[0], 1))
+            # A = A / A_std
+            # B = B / A_std
             
-            mmd_fig, ax, mmd_value, mmd_p_value = mmd_test(A, B, n_shuffle=n_samples)
-            component["mmd_p_value"] = mmd_p_value
-            ax.set_title(f"MMD two sample test plot for component {i}")
+            # mmd_fig, ax, mmd_value, mmd_p_value = mmd_test(A, B, n_shuffle=n_samples)
+            # component["mmd_p_value"] = mmd_p_value
+            # ax.set_title(f"MMD two sample test plot for component {i}")
                     
             
             
@@ -441,7 +442,7 @@ class ModelCheckingAnalysis(DownstreamAnalysis):
             component["pxx_max_loc"] = pxx_max_loc
             component["pxx_max"] = pxx_max
             
-            figs += [(mmd_fig, qq_fig, acf_fig, pxx_fig)]
+            figs += [(qq_fig, acf_fig, pxx_fig)]
         
         return figs
 

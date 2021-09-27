@@ -1,3 +1,4 @@
+from kernel_discovery.description.simplify import distribution
 import os
 import pickle
 import click
@@ -8,7 +9,7 @@ from util import save, load_pickle
 import sys
 sys.path.append("..")
 from kernel_discovery.analysis import Result, IndividualAnalysis, CummulativeAnalysis, ModelCheckingAnalysis
-from kernel_discovery.description.describe import ProductDesc
+from kernel_discovery.description.describe import ProductDesc, model_checking_report
 
 import matplotlib.pyplot as plt
 
@@ -58,8 +59,8 @@ def model_check_analysis(x, y, ast, noise, components):
     list_figs = result.analyze()
     
     for i, figs in enumerate(list_figs):
-        mmd_fig, qq_fig, acf_fig, pxx_fig = figs
-        mlflow.log_figure(mmd_fig, f"mmd_{i}.png")
+        qq_fig, acf_fig, pxx_fig = figs
+        # mlflow.log_figure(mmd_fig, f"mmd_{i}.png")
         mlflow.log_figure(qq_fig, f"qq_band_{i}.png")
         mlflow.log_figure(acf_fig, f"acf_band_{i}.png")
         mlflow.log_figure(pxx_fig, f"pxx_band_{i}.png")
@@ -82,6 +83,11 @@ def make_report(x, components):
         component["summary"] = summary
         component["full_desc"] = ".\n".join(full_desc)
         component["extrap_desc"] =".\n".join(extrap_desc)
+        
+        # model checking report
+        discussion, bad_fit = model_checking_report(component)
+        component["discussion"] = discussion
+        component.update(bad_fit)
     
     return components
     
@@ -106,7 +112,7 @@ def analysis(model_file):
         components = individual_analysis(x, y, ast, noise, components)
         # cummulative
         components = cummulative_analysis(x, y, ast, noise, components)
-        # model checking
+        # model checking # TURN OFF FOR NOW
         components = model_check_analysis(x, y, ast, noise, components)
         #generate report
         components = make_report(x, components)
@@ -120,8 +126,8 @@ def analysis(model_file):
         
 
 if __name__ == '__main__':
-    # ## debug
-    # model_file = "/home/anhth/projects/automatic_news/experimental/mlruns/0/27bc84d214484868a983ff90cf7eeff9/artifacts/model.pkl"
+    # # debug
+    # model_file = "/home/anhth/projects/automatic_news/experimental/mlruns/0/2401bc4e71524765b1a05b6f32d51dfe/artifacts/model.pkl"
     # analysis(model_file)
     
     # main

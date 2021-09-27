@@ -11,11 +11,10 @@ from kernel_discovery.description.transform import ast_to_kernel, kernel_to_ast
 from kernel_discovery.description.utils import pretty_ast
 from gpflow.models.gpr import GPR
 from gpflow.optimizers.scipy import Scipy
-from kernel_discovery.kernel import RBF, Linear, Periodic, Polynomial, init_kernel
+from kernel_discovery.kernel import init_kernel
 
 import ray
 from ray.tune.integration.mlflow import mlflow_mixin
-import mlflow
 
 def nll(model: GPR):
 
@@ -59,7 +58,14 @@ class BaseEvaluator(object):
         def init_func(kernel_type):
             return init_kernel(kernel_type, datashape_x, datashape_y, sd=1.)
 
-        kernel = ast_to_kernel(ast, init_func=init_func)
+        try:
+            kernel = ast_to_kernel(ast, init_func=init_func)
+        except:
+            self.logger.error(
+                f"Error occured when initializing hyperparameter: \n {pretty_ast(ast)}")
+            optimized_ast = kernel_to_ast(ast_to_kernel(ast), include_param=True)
+            noise_variance = np.inf
+            return optimized_ast, noise_variance, np.Inf
 
         model = GPR(data=(x, y), kernel=kernel, noise_variance=init_noise_variance(datashape_y))
 
