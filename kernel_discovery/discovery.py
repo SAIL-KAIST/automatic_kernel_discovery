@@ -1,4 +1,5 @@
 import re
+from gpflow.models.svgp import SVGP
 from yfinance import ticker
 from kernel_discovery.expansion.grammar import IMPLEMENTED_BASE_KERNEL_NAMES
 import logging
@@ -12,6 +13,9 @@ from kernel_discovery.preprocessing import get_datashape, preprocessing
 from kernel_discovery.description import kernel_to_ast, ast_to_text
 from kernel_discovery.expansion.expand import expand_asts
 from kernel_discovery.evaluation.evaluate import LocalEvaluator, ParallelEvaluator
+
+from kernel_discovery.sparse_selector.structural_sgp import StructuralSVGP
+
 from collections import defaultdict
 
 class BaseDiscovery(object):
@@ -120,14 +124,7 @@ class ABCDiscovery(BaseDiscovery):
         }
 
 
-class HorseshoeDiscovery(BaseDiscovery):
 
-    def __init__(self) -> None:
-        super().__init__()
-
-    def discover(self, x, y):
-        # TODO: implement this
-        pass
 
 
 if __name__ == "__main__":

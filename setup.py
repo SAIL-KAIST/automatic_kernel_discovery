@@ -8,5 +8,6 @@ setup(name="Kernel Discovery",
                 "kernel_discovery.description",
                 "kernel_discovery.expansion",
                 "kernel_discovery.evaluation",
+                "kernel_discovery.sparse_selector",
                 "kernel_discovery.plot",
                 "kernel_discovery.io"])

@@ -2,12 +2,30 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from kernel_discovery.analysis.util import compute_cholesky
+# from kernel_discovery.analysis.util import compute_cholesky
 
 
 GP_FIG_SIZE = (6,3)
 COLOR_PALETTE = sns.color_palette()
 
+def compute_cholesky(K, max_tries=10):
+    
+    if not isinstance(K, np.ndarray):
+        K = K.numpy()
+    try:
+        L = np.linalg.cholesky(K)
+    except:
+        K_max = np.max(K)
+        for i in range(max_tries):
+            jitter = K_max * 10 ** (i-max_tries)
+            try:
+                L = np.linalg.cholesky(K + jitter * np.eye(K.shape[0]))
+                print(f"Added {jitter} to the diagon of matrix. Beware of imprecise result!!!")
+                return L
+            except:
+                print("Increase jitter")
+    
+    raise RuntimeError("Reaching max jitter try. Cannot perform cholesky ")
 
 def plot_gp_regression(x: np.array, y: np.array, x_extrap: np.array, mean, var, data_only=False, has_data=True):
     """
