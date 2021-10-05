@@ -1,8 +1,5 @@
-
 from copy import deepcopy
-from operator import le
-from re import sub
-from typing import Optional, List
+from typing import List
 import itertools
 from gpflow.kernels import Kernel
 

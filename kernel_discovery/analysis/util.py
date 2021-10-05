@@ -91,6 +91,7 @@ def compute_cholesky(K, max_tries=10):
         K = K.numpy()
     try:
         L = np.linalg.cholesky(K)
+        return L
     except:
         K_max = np.max(K)
         for i in range(max_tries):

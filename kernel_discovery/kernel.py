@@ -73,7 +73,7 @@ COMBINATION_KERNELS: Dict[str, Kernel] = {
 }
 
 
-def positive_sample(loc, scale, lower=1e-5, upper=10e3):
+def positive_sample(loc, scale, lower=1e-4, upper=1e3):
     return stats.truncnorm.rvs(a=lower, b=upper, loc=loc, scale=scale)
 
 def init_rbf(datashape_x: DataShape, datashape_y: DataShape, sd=1.):
@@ -132,7 +132,7 @@ def init_linear(datashape_x: DataShape, datashape_y: DataShape, sd=1.):
     if r < 2. / 3:
         dist_y = datashape_y.max - datashape_y.min
         dist_x = datashape_x.max - datashape_x.min
-        loc = np.log(np.abs(dist_y / dist_x))
+        loc = np.abs(dist_y / dist_x)
         variance = positive_sample(loc=loc, scale=sd)
     else:
         variance = positive_sample(loc=0., scale=sd)

@@ -1,22 +1,14 @@
-import re
-from gpflow.models.svgp import SVGP
-from yfinance import ticker
-from kernel_discovery.expansion.grammar import IMPLEMENTED_BASE_KERNEL_NAMES
 import logging
 from typing import Any, Dict, Optional
-from gpflow import kernels
+from collections import defaultdict
 
 import numpy as np
 from gpflow.kernels import White
 
-from kernel_discovery.preprocessing import get_datashape, preprocessing
+from kernel_discovery.expansion.grammar import IMPLEMENTED_BASE_KERNEL_NAMES
 from kernel_discovery.description import kernel_to_ast, ast_to_text
 from kernel_discovery.expansion.expand import expand_asts
 from kernel_discovery.evaluation.evaluate import LocalEvaluator, ParallelEvaluator
-
-from kernel_discovery.sparse_selector.structural_sgp import StructuralSVGP
-
-from collections import defaultdict
 
 class BaseDiscovery(object):
 
@@ -122,23 +114,3 @@ class ABCDiscovery(BaseDiscovery):
             **{kernel_name: scored_kernels[kernel_name] for kernel_name in self.get_n_best(scored_kernels)},
             'terminate_reason': stopping_reason
         }
-
-
-
-
-
-if __name__ == "__main__":
-
-    # unit test
-    from kernel_discovery.description.describe import describe
-    from kernel_discovery.io import retrieve
-
-    ticker = 'MSFT'
-    start = '2021-01-01'
-    end = '2021-07-01'
-    x, y, ticker = retrieve(ticker_name=ticker, start=start, end=end)
-
-    discovery = ABCDiscovery(cluster_kwargs=dict(cluster=None))
-
-    results = discovery.discover(x, y)
-    print(results)
