@@ -37,7 +37,7 @@ class Periodic(gpflow_Periodic):
         
         K = super().K(x, x2)
         i0 = tf.math.bessel_i0e(1./self.base_kernel.lengthscales)
-        return (K - i0 * self.base_kernel.variance) / (1. - i0)
+        return K
 
 class Linear(gpflow_Linear):
 

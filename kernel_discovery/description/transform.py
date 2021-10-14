@@ -1,3 +1,5 @@
+from builtins import print
+from os import EX_CANTCREAT
 from typing import Callable, Optional
 
 from gpflow.utilities.traversal import parameter_dict
@@ -30,7 +32,10 @@ def ast_to_kernel(node: Node, init_func: Callable = None) -> Kernel:
         kernel = node.name()
         if hasattr(node, 'parameters'):
             for k_param, n_param in zip(kernel.parameters, node.parameters):
-                k_param.assign(n_param)
+                try:
+                    k_param.assign(n_param)
+                except:
+                    print(f"-->Error assigned param. Parameter value: {n_param}, Node name: {str(node.name)}", )
         else:
             if init_func is not None:
                 params = init_func(node.name)
